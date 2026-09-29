@@ -121,6 +121,7 @@
   .theme-toggle:hover { color: var(--ink); border-color: var(--ink-dim); }
 
   .header-actions { display: flex; gap: 8px; align-items: center; }
+  .app-version { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-dim); }
   .sync-btn {
     display: inline-flex; align-items: center; gap: 7px;
     background: none; border: 1px solid var(--line); color: var(--ink-dim);
@@ -353,6 +354,7 @@
   "use strict";
 
   /* ============ Constants ============ */
+  var APP_VERSION = "1.0.0"; // bump this whenever you change the app
   var TYPES = ["Warehouse", "On Site", "Holiday", "Sick", "Off"];
   var TYPE_CLASS = { "Warehouse": "tag-Warehouse", "On Site": "tag-OnSite", "Holiday": "tag-Holiday", "Sick": "tag-Sick", "Off": "tag-Off" };
   var STORAGE_KEY = "dk_timesheet_entries_v1";
@@ -1222,6 +1224,7 @@
       '<div class="topbar">' +
         '<div class="brand"><span class="mark">DK <span>Timesheet</span></span></div>' +
         '<div class="header-actions">' +
+          '<span class="app-version" title="App version">v' + APP_VERSION + '</span>' +
           '<span class="sync-btn" id="syncStatusPill" title="PIN ' + escapeHtml(maskPin(state.pin)) + '"><span class="sync-dot ' + state.syncStatus + '"></span><span class="sync-label">' + syncStatusLabel() + '</span></span>' +
           '<button class="btn btn-sm" id="logoutBtn">Log out</button>' +
           '<button class="theme-toggle" id="themeToggle">' + (isDark ? "Light mode" : "Dark mode") + '</button>' +
