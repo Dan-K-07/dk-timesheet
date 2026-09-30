@@ -430,7 +430,7 @@ function renderRow(e) {
   var docBadge = docCount > 0 ? ' <button class="doc-badge" data-goto-docs="' + e.date + '">\uD83D\uDCCE ' + docCount + '</button>' : '';
   return '<tr data-id="' + e.id + '">' +
     '<td><input type="checkbox" class="row-check" data-id="' + e.id + '"' + (isSelected(e.id) ? " checked" : "") + '></td>' +
-    '<td class="mono">' + fmtDate(e.date) + docBadge + '</td>' +
+    '<td class="mono date-cell">' + fmtDate(e.date) + docBadge + '</td>' +
     '<td class="mono">' + (e.start || "\u2014") + '</td>' +
     '<td class="mono">' + (e.end || "\u2014") + '</td>' +
     '<td class="num">' + (e.breakHrs === "" || e.breakHrs === undefined || e.breakHrs === null ? "\u2014" : e.breakHrs) + '</td>' +

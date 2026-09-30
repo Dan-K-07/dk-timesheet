@@ -300,6 +300,7 @@ select, .field-input {
   padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13.5px; vertical-align: middle;
 }
 .log-table td.mono, .log-table th.num { font-family: var(--font-mono); }
+.log-table td.date-cell { white-space: nowrap; }
 .log-table td.num { text-align: right; font-family: var(--font-mono); }
 .log-table tr:hover td { background: var(--panel-2); }
 .log-table .notes-cell { color: var(--ink-dim); font-size: 12.5px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
