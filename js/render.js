@@ -391,7 +391,7 @@ function renderLog() {
       '<th style="width:32px;"><input type="checkbox" id="selectAllChk"' + (allSelected ? " checked" : "") + '></th>' +
       '<th>Date</th><th>Start</th><th>End</th><th class="num">Break</th>' +
       '<th class="num">Hrs</th><th class="num">Hrs worked</th><th class="num">Rate</th><th class="num">Pay</th>' +
-      '<th>Type</th><th>Notes</th><th></th>' +
+      '<th>Type</th><th>Notes</th><th class="actions-col"></th>' +
     '</tr></thead><tbody>' + (rows || '<tr><td colspan="12" style="text-align:center;color:var(--ink-dim);padding:26px;">No entries match these filters.</td></tr>') + '</tbody></table></div>' +
     '<p class="footnote">' + entries.length + ' of ' + state.entries.length + ' entries shown. Data is saved in this browser only \u2014 export a copy from time to time.</p>';
 }
@@ -451,7 +451,7 @@ function renderRow(e) {
     '<td class="num">' + fmtPay(pay) + '</td>' +
     '<td>' + typeTag + '</td>' +
     '<td class="notes-cell" title="' + escapeHtml(e.notes || "") + '">' + escapeHtml(e.notes || "") + '</td>' +
-    '<td><div class="row-actions">' +
+    '<td class="actions-cell"><div class="row-actions">' +
       '<button class="icon-btn" data-edit="' + e.id + '" title="Edit">Edit</button>' +
       '<button class="icon-btn danger" data-delete="' + e.id + '" title="Delete">Delete</button>' +
     '</div></td>' +
