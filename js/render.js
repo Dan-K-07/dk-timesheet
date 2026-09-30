@@ -390,7 +390,7 @@ function renderLog() {
     '<div class="card log-table-wrap"><table class="log-table"><thead><tr>' +
       '<th style="width:32px;"><input type="checkbox" id="selectAllChk"' + (allSelected ? " checked" : "") + '></th>' +
       '<th>Date</th><th>Start</th><th>End</th><th class="num">Break</th>' +
-      '<th class="num">Hrs</th><th class="num">Hrs worked</th><th class="num">Rate</th><th class="num">Pay</th>' +
+      '<th class="num">Hrs</th><th class="num center">Hrs worked</th><th class="num">Rate</th><th class="num">Pay</th>' +
       '<th>Type</th><th>Notes</th><th class="actions-col"></th>' +
     '</tr></thead><tbody>' + (rows || '<tr><td colspan="12" style="text-align:center;color:var(--ink-dim);padding:26px;">No entries match these filters.</td></tr>') + '</tbody></table></div>' +
     '<p class="footnote">' + entries.length + ' of ' + state.entries.length + ' entries shown. Data is saved in this browser only \u2014 export a copy from time to time.</p>';
@@ -446,7 +446,7 @@ function renderRow(e) {
     '<td class="mono">' + (e.end || "\u2014") + '</td>' +
     '<td class="num">' + (e.breakHrs === "" || e.breakHrs === undefined || e.breakHrs === null ? "\u2014" : e.breakHrs) + '</td>' +
     '<td class="num">' + fmtHours(hours) + '</td>' +
-    '<td class="num">' + fmtHours(hw) + '</td>' +
+    '<td class="num center">' + fmtHours(hw) + '</td>' +
     '<td class="num">' + (e.rate === "" || e.rate === undefined || e.rate === null || e.rate === "" ? "\u2014" : "\u00A3" + parseFloat(e.rate).toFixed(2)) + '</td>' +
     '<td class="num">' + fmtPay(pay) + '</td>' +
     '<td>' + typeTag + '</td>' +
