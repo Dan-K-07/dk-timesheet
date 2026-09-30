@@ -40,8 +40,7 @@ function fmtDate(iso) {
   if (!iso) return "\u2014";
   var d = new Date(iso + "T00:00:00");
   if (isNaN(d)) return iso;
-  var days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  return days[d.getDay()] + " " + d.getDate() + " " + MONTH_NAMES[d.getMonth()].slice(0,3) + " " + d.getFullYear();
+  return dateFormatById(state.settings.dateFormat).fmt(d);
 }
 function monthKey(iso) {
   if (!iso) return null;

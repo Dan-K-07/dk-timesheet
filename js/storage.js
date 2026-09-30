@@ -9,6 +9,7 @@ function load() {
   try { state.lastRate = localStorage.getItem(RATE_KEY) ? parseFloat(localStorage.getItem(RATE_KEY)) : null; } catch (e) {}
   try { state.theme = localStorage.getItem(THEME_KEY) || null; } catch (e) {}
   if (state.theme) document.documentElement.setAttribute("data-theme", state.theme);
+  loadSettings();
 }
 function save(skipPush) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries)); } catch (e) {

@@ -8,8 +8,9 @@ function render() {
     attachGateEvents();
     return;
   }
-  var body = state.tab === "summary" ? renderSummary() : state.tab === "docs" ? renderDocuments() : state.tab === "calc" ? renderPayCalc() : renderLog();
+  var body = state.tab === "summary" ? renderSummary() : state.tab === "docs" ? renderDocuments() : state.tab === "calc" ? renderPayCalc() : state.tab === "settings" ? renderSettings() : renderLog();
   app.innerHTML = renderTopbar() + renderTabs() + body;
+  scrollActiveTabIntoView();
   attachEvents();
 }
 
@@ -46,7 +47,17 @@ function renderTabs() {
       '<button class="tab' + (state.tab === "log" ? " active" : "") + '" data-tab="log">All Data</button>' +
       '<button class="tab' + (state.tab === "docs" ? " active" : "") + '" data-tab="docs">Documents</button>' +
       '<button class="tab' + (state.tab === "calc" ? " active" : "") + '" data-tab="calc">Take-Home Pay</button>' +
+      '<button class="tab' + (state.tab === "settings" ? " active" : "") + '" data-tab="settings">Settings</button>' +
     '</div>';
+}
+
+// On narrow screens the tab row scrolls sideways; keep the selected tab visible.
+function scrollActiveTabIntoView() {
+  var tabs = document.querySelector(".tabs");
+  var active = tabs && tabs.querySelector(".tab.active");
+  if (!active) return;
+  var overflow = active.offsetLeft + active.offsetWidth - tabs.clientWidth;
+  if (overflow > 0) tabs.scrollLeft = overflow + 24;
 }
 
 function docIcon(mime, filename) {
