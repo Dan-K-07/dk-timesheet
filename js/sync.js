@@ -18,35 +18,43 @@ function updateSyncStatusUI() {
   if (dot) dot.className = "sync-dot " + state.syncStatus;
   if (label) label.textContent = syncStatusLabel();
 }
-function maskPin(pin) {
-  if (!pin) return "";
-  if (pin.length <= 2) return pin.charAt(0) + "*";
-  return pin.charAt(0) + new Array(pin.length - 1).join("*") + pin.charAt(pin.length - 1);
-}
 function formatTimeShort(d) { return pad2(d.getHours()) + ":" + pad2(d.getMinutes()); }
 
-async function pushRow(client, pin) {
-  var payload = { pin: pin, entries: state.entries, updated_by: getClientId(), updated_at: new Date().toISOString() };
-  var res = await client.from(SYNC_TABLE).upsert(payload, { onConflict: "pin" });
+function getSupabase() {
+  if (!sbClient) {
+    sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { storageKey: AUTH_STORAGE_KEY, persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+    });
+  }
+  return sbClient;
+}
+function hasStoredSession() {
+  try { return !!localStorage.getItem(AUTH_STORAGE_KEY); } catch (e) { return false; }
+}
+function errMessage(e) { return e && e.message ? e.message : "unknown error"; }
+
+async function pushRow() {
+  var payload = { user_id: state.user.id, entries: state.entries, updated_by: getClientId(), updated_at: new Date().toISOString() };
+  var res = await sbClient.from(SYNC_TABLE).upsert(payload, { onConflict: "user_id" });
   if (res.error) throw res.error;
 }
 
 function scheduleSyncPush() {
-  if (!state.authed || !sbClient) return;
+  if (!state.authed || !state.user) return;
   clearTimeout(syncPushTimer);
   syncPushTimer = setTimeout(doSyncPush, 800);
 }
 async function doSyncPush() {
-  if (!sbClient || !state.pin) return;
+  if (!state.user) return;
   state.syncStatus = "syncing";
   updateSyncStatusUI();
   try {
-    await pushRow(sbClient, state.pin);
+    await pushRow();
     state.syncStatus = "synced";
     state.lastSynced = new Date();
   } catch (e) {
     state.syncStatus = "error";
-    toast("Sync failed: " + (e && e.message ? e.message : "unknown error"));
+    toast("Sync failed: " + errMessage(e));
   }
   updateSyncStatusUI();
 }
@@ -62,90 +70,199 @@ function handleRemoteChange(payload) {
   toast("Updated from another device.");
   render();
 }
-function subscribeRealtime(pin) {
-  if (!sbClient) return;
+function subscribeRealtime() {
   if (realtimeChannel) {
     try { sbClient.removeChannel(realtimeChannel); } catch (e) {}
     realtimeChannel = null;
   }
-  realtimeChannel = sbClient.channel("sync-" + pin)
-    .on("postgres_changes", { event: "UPDATE", schema: "public", table: SYNC_TABLE, filter: "pin=eq." + pin }, handleRemoteChange)
-    .on("postgres_changes", { event: "INSERT", schema: "public", table: SYNC_TABLE, filter: "pin=eq." + pin }, handleRemoteChange)
+  var filter = "user_id=eq." + state.user.id;
+  realtimeChannel = sbClient.channel("sync-" + state.user.id)
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: SYNC_TABLE, filter: filter }, handleRemoteChange)
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: SYNC_TABLE, filter: filter }, handleRemoteChange)
     .subscribe();
 }
+function unsubscribeAll() {
+  if (realtimeChannel) { try { sbClient.removeChannel(realtimeChannel); } catch (e) {} }
+  if (docChannel) { try { sbClient.removeChannel(docChannel); } catch (e) {} }
+  realtimeChannel = null;
+  docChannel = null;
+}
 
-async function attemptLogin(pin, opts) {
-  opts = opts || {};
-  var cleanPin = String(pin || "").trim();
-  if (!cleanPin || cleanPin.length < 4) {
-    if (!opts.silent) { state.gateError = "Enter a PIN with at least 4 characters."; render(); }
-    return;
-  }
-
-  state.pinAttempting = true;
-  state.gateError = "";
-  if (!opts.silent) render();
-
+/* ============ Auth (Supabase email + password) ============ */
+function initAuth() {
   var client;
-  try {
-    client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  } catch (e) {
-    state.pinAttempting = false;
-    state.gateError = "Couldn't start the sync client.";
+  try { client = getSupabase(); } catch (e) {
+    state.authChecking = false;
+    state.authError = "Couldn't start the sync client.";
     render();
     return;
   }
+  // A password-reset email link lands back here with type=recovery.
+  if (/type=recovery/.test(location.hash)) state.authMode = "reset";
 
-  try {
-    var res = await client.from(SYNC_TABLE).select("entries,updated_at,updated_by").eq("pin", cleanPin).maybeSingle();
-    if (res.error) throw res.error;
-    var row = res.data;
-    if (row) {
-      state.entries = row.entries || [];
-      save(true);
-    } else {
-      // First time this PIN has been used — seed it with whatever's on this device.
-      await pushRow(client, cleanPin);
+  client.auth.onAuthStateChange(function (event, session) {
+    // Supabase advises against calling other auth methods inside this
+    // callback, so hand the work off to the next tick.
+    setTimeout(function () { handleAuthEvent(event, session); }, 0);
+  });
+  // With no signal Supabase keeps retrying the session refresh for a long
+  // time before reporting back, so don't leave the user on "Loading".
+  setTimeout(function () {
+    if (state.authChecking && hasStoredSession()) enterOfflineMode();
+  }, 4000);
+  window.addEventListener("online", function () {
+    if (state.authed && !state.user) {
+      client.auth.getSession().then(function (r) {
+        if (r.data && r.data.session) startSession(r.data.session.user);
+      });
     }
-    sbClient = client;
-    state.pin = cleanPin;
-    savePin(cleanPin);
-    subscribeRealtime(cleanPin);
-    subscribeDocRealtime(cleanPin);
-    loadDocuments();
-    state.authed = true;
-    state.syncStatus = "synced";
-    state.lastSynced = new Date();
-    state.pinAttempting = false;
+  });
+}
+
+function handleAuthEvent(event, session) {
+  if (event === "PASSWORD_RECOVERY") {
+    state.authMode = "reset";
+    state.authChecking = false;
     render();
-  } catch (e) {
-    state.pinAttempting = false;
-    if (opts.silent) {
-      // Already logged in on this device before — let them work from the
-      // local cache while offline rather than locking them out.
-      state.pin = cleanPin;
-      state.authed = true;
-      state.syncStatus = "error";
-      render();
-      toast("Couldn't reach sync \u2014 showing your last saved data.");
-    } else {
-      state.gateError = "Couldn't reach sync (" + (e && e.message ? e.message : "unknown error") + "). Check your connection and try again.";
-      render();
-    }
+    return;
+  }
+  if (event === "SIGNED_OUT") {
+    if (state.authed) endSession();
+    return;
+  }
+  if (event === "INITIAL_SESSION") {
+    state.authChecking = false;
+    if (state.authMode === "reset") { render(); return; }
+    if (session) { startSession(session.user); return; }
+    if (hasStoredSession()) { if (!state.authed) enterOfflineMode(); return; }
+    // No usable session (e.g. it was revoked) - back to the login form.
+    if (state.authed) endSession(); else render();
+    return;
+  }
+  if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session && state.authMode !== "reset") {
+    if (!state.user || state.user.id !== session.user.id) startSession(session.user);
   }
 }
 
-function logout() {
-  if (realtimeChannel && sbClient) { try { sbClient.removeChannel(realtimeChannel); } catch (e) {} }
-  if (docChannel && sbClient) { try { sbClient.removeChannel(docChannel); } catch (e) {} }
-  realtimeChannel = null;
-  docChannel = null;
-  sbClient = null;
-  clearPin();
-  state.authed = false;
-  state.pin = null;
-  state.syncStatus = "off";
-  state.gateError = "";
-  state.documents = [];
+// Signed in on this device before but the session couldn't be refreshed
+// (usually no signal): work from the local copy and reconnect later.
+function enterOfflineMode() {
+  state.authChecking = false;
+  state.authed = true;
+  state.syncStatus = "error";
   render();
+  toast("Couldn't reach sync \u2014 showing your last saved data.");
+}
+
+async function startSession(user) {
+  if (state.startingSession) return;
+  state.startingSession = true;
+  state.user = { id: user.id, email: user.email };
+  state.authed = true;
+  state.authError = "";
+  state.authInfo = "";
+  state.syncStatus = "connecting";
+  render();
+  try {
+    var res = await sbClient.from(SYNC_TABLE).select("entries,updated_at,updated_by").eq("user_id", user.id).maybeSingle();
+    if (res.error) throw res.error;
+    if (res.data) {
+      state.entries = res.data.entries || [];
+      save(true);
+    } else {
+      // No timesheet saved for this account yet - seed it from this device.
+      await pushRow();
+    }
+    subscribeRealtime();
+    subscribeDocRealtime();
+    loadDocuments();
+    state.syncStatus = "synced";
+    state.lastSynced = new Date();
+  } catch (e) {
+    state.syncStatus = "error";
+    toast("Couldn't reach sync (" + errMessage(e) + ") — showing your last saved data.");
+  }
+  state.startingSession = false;
+  render();
+}
+
+function endSession() {
+  unsubscribeAll();
+  clearTimeout(syncPushTimer);
+  state.authed = false;
+  state.user = null;
+  state.syncStatus = "off";
+  state.documents = [];
+  state.authMode = "login";
+  state.authError = "";
+  state.authInfo = "";
+  render();
+}
+
+async function signIn(email, password) {
+  email = String(email || "").trim();
+  if (!email || !password) { state.authError = "Enter your email and password."; render(); return; }
+  state.authBusy = true;
+  state.authError = "";
+  render();
+  var res;
+  try { res = await getSupabase().auth.signInWithPassword({ email: email, password: password }); }
+  catch (e) { res = { error: e }; }
+  state.authBusy = false;
+  if (res.error) {
+    state.authError = /invalid login/i.test(errMessage(res.error))
+      ? "Email or password is incorrect."
+      : "Couldn't sign in (" + errMessage(res.error) + ").";
+    render();
+    return;
+  }
+  startSession(res.data.user);
+}
+
+async function sendPasswordReset(email) {
+  email = String(email || "").trim();
+  if (!email) { state.authError = "Enter the email you sign in with."; render(); return; }
+  state.authBusy = true;
+  state.authError = "";
+  render();
+  var res;
+  try {
+    res = await getSupabase().auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+  } catch (e) { res = { error: e }; }
+  state.authBusy = false;
+  if (res.error) {
+    state.authError = "Couldn't send the email (" + errMessage(res.error) + ").";
+  } else {
+    state.authInfo = "If that email has an account, a reset link is on its way. Open it on this device.";
+    state.authMode = "login";
+  }
+  render();
+}
+
+async function setNewPassword(password, confirmPassword) {
+  if (!password || password.length < 8) { state.authError = "Use at least 8 characters."; render(); return; }
+  if (password !== confirmPassword) { state.authError = "The two passwords don't match."; render(); return; }
+  state.authBusy = true;
+  state.authError = "";
+  render();
+  var res;
+  try { res = await getSupabase().auth.updateUser({ password: password }); }
+  catch (e) { res = { error: e }; }
+  state.authBusy = false;
+  if (res.error) {
+    state.authError = "Couldn't save the new password (" + errMessage(res.error) + "). The reset link may have expired — request a new one.";
+    render();
+    return;
+  }
+  try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+  state.authMode = "login";
+  toast("Password updated.");
+  startSession(res.data.user);
+}
+
+async function logout() {
+  unsubscribeAll();
+  // "local" signs out this device only, so other devices stay logged in.
+  try { await getSupabase().auth.signOut({ scope: "local" }); } catch (e) {}
+  endSession();
 }

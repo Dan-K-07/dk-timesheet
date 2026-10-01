@@ -25,9 +25,9 @@ function docsForDate(dateIso) {
 }
 
 async function loadDocuments() {
-  if (!sbClient || !state.pin) return;
+  if (!state.user) return;
   try {
-    var res = await sbClient.from(DOC_TABLE).select("*").eq("pin", state.pin).order("uploaded_at", { ascending: false });
+    var res = await sbClient.from(DOC_TABLE).select("*").eq("user_id", state.user.id).order("uploaded_at", { ascending: false });
     if (res.error) throw res.error;
     state.documents = res.data || [];
     render();
@@ -36,29 +36,29 @@ async function loadDocuments() {
   }
 }
 
-function subscribeDocRealtime(pin) {
-  if (!sbClient) return;
+function subscribeDocRealtime() {
   if (docChannel) { try { sbClient.removeChannel(docChannel); } catch (e) {} docChannel = null; }
-  docChannel = sbClient.channel("docs-" + pin)
-    .on("postgres_changes", { event: "*", schema: "public", table: DOC_TABLE, filter: "pin=eq." + pin }, function () {
+  docChannel = sbClient.channel("docs-" + state.user.id)
+    .on("postgres_changes", { event: "*", schema: "public", table: DOC_TABLE, filter: "user_id=eq." + state.user.id }, function () {
       loadDocuments();
     })
     .subscribe();
 }
 
 async function uploadDocument(file, entryDate, label) {
-  if (!sbClient || !state.pin) { toast("Not connected \u2014 try logging in again."); return; }
+  if (!state.user) { toast("Not connected \u2014 try logging in again."); return; }
   if (!file) return;
   state.docUploading = true;
   render();
   try {
     var safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    var storagePath = state.pin + "/" + uid() + "-" + safeName;
+    // Files go in a folder named after the account - the storage policy relies on it.
+    var storagePath = state.user.id + "/" + uid() + "-" + safeName;
     var upRes = await sbClient.storage.from(DOC_BUCKET).upload(storagePath, file, { upsert: false });
     if (upRes.error) throw upRes.error;
 
     var meta = {
-      pin: state.pin,
+      user_id: state.user.id,
       entry_date: entryDate || null,
       filename: label && label.trim() ? label.trim() : file.name,
       storage_path: storagePath,
@@ -79,7 +79,7 @@ async function uploadDocument(file, entryDate, label) {
 }
 
 async function deleteDocument(doc) {
-  if (!sbClient) return;
+  if (!state.user) return;
   if (!confirm("Delete \u201c" + doc.filename + "\u201d? This can't be undone.")) return;
   try {
     await sbClient.storage.from(DOC_BUCKET).remove([doc.storage_path]);

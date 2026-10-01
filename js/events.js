@@ -2,15 +2,28 @@
 
 /* ============ Events ============ */
 function attachGateEvents() {
-  var submit = document.getElementById("gateSubmit");
-  var input = document.getElementById("gatePin");
-  if (submit) submit.addEventListener("click", function () { attemptLogin(input.value); });
-  if (input) {
-    input.focus();
-    input.addEventListener("keydown", function (ev) {
-      if (ev.key === "Enter") attemptLogin(input.value);
+  var form = document.getElementById("authForm");
+  var val = function (id) { var el = document.getElementById(id); return el ? el.value : ""; };
+  if (form) {
+    var first = form.querySelector("input");
+    if (first) first.focus();
+    form.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      if (state.authBusy) return;
+      var mode = form.getAttribute("data-mode");
+      if (mode === "forgot") sendPasswordReset(val("authEmail"));
+      else if (mode === "reset") setNewPassword(val("authNewPassword"), val("authConfirmPassword"));
+      else signIn(val("authEmail"), val("authPassword"));
     });
   }
+  bindIf("authForgot", "click", function () {
+    state.authMode = "forgot"; state.authError = ""; state.authInfo = ""; render();
+  });
+  bindIf("authBack", "click", function () {
+    state.authMode = "login"; state.authError = ""; state.authInfo = "";
+    try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+    render();
+  });
 }
 
 function attachEvents() {
@@ -18,7 +31,7 @@ function attachEvents() {
   if (themeBtn) themeBtn.addEventListener("click", toggleTheme);
 
   bindIf("logoutBtn", "click", function () {
-    if (confirm("Log out? You'll need your PIN again to view this timesheet on this device.")) logout();
+    if (confirm("Log out? You'll need your email and password to get back in on this device.")) logout();
   });
 
   document.querySelectorAll(".tab").forEach(function (btn) {

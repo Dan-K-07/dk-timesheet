@@ -9,6 +9,7 @@ function load() {
   try { state.lastRate = localStorage.getItem(RATE_KEY) ? parseFloat(localStorage.getItem(RATE_KEY)) : null; } catch (e) {}
   try { state.theme = localStorage.getItem(THEME_KEY) || null; } catch (e) {}
   if (state.theme) document.documentElement.setAttribute("data-theme", state.theme);
+  try { localStorage.removeItem(LEGACY_PIN_KEY); } catch (e) {}
   loadSettings();
 }
 function save(skipPush) {
@@ -30,13 +31,4 @@ function getClientId() {
     try { localStorage.setItem(CLIENT_ID_KEY, id); } catch (e) {}
   }
   return id;
-}
-function loadPin() {
-  try { return localStorage.getItem(PIN_KEY) || null; } catch (e) { return null; }
-}
-function savePin(pin) {
-  try { localStorage.setItem(PIN_KEY, pin); } catch (e) {}
-}
-function clearPin() {
-  try { localStorage.removeItem(PIN_KEY); } catch (e) {}
 }

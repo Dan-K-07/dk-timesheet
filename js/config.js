@@ -1,21 +1,22 @@
 "use strict";
 
 /* ============ Constants ============ */
-var APP_VERSION = "1.1.2"; // bump this whenever you change the app
+var APP_VERSION = "2.0.0"; // bump this whenever you change the app
 var TYPES = ["Warehouse", "On Site", "Holiday", "Sick", "Off"];
 var TYPE_CLASS = { "Warehouse": "tag-Warehouse", "On Site": "tag-OnSite", "Holiday": "tag-Holiday", "Sick": "tag-Sick", "Off": "tag-Off" };
 var STORAGE_KEY = "dk_timesheet_entries_v1";
 var RATE_KEY = "dk_timesheet_last_rate_v1";
 var THEME_KEY = "dk_timesheet_theme_v1";
-var PIN_KEY = "dk_timesheet_pin_v1";
+var LEGACY_PIN_KEY = "dk_timesheet_pin_v1"; // from the old PIN login; removed on load
+var AUTH_STORAGE_KEY = "dk_timesheet_auth_v1";
 var CLIENT_ID_KEY = "dk_timesheet_client_id_v1";
 var SYNC_TABLE = "timesheet_sync";
 var MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-// Baked in so every device only ever needs the PIN. The publishable/anon
-// key is meant to be public (it's exposed in any browser using Supabase) —
-// real access control here is the RLS policy on the timesheet_sync table
-// plus the PIN gate below, not secrecy of this value.
+// The publishable/anon key is meant to be public (it's exposed in any
+// browser using Supabase). Access control is Supabase Auth plus the RLS
+// policies in supabase/migrations, which only let a signed-in user reach
+// rows where user_id = auth.uid().
 var SUPABASE_URL = "https://axiqpqjquywvzymmzwgr.supabase.co";
 var SUPABASE_ANON_KEY = "sb_publishable_gO1jSR_OETTKmwCz-hEb3w_JUYS1tik";
 
@@ -53,9 +54,13 @@ var state = {
   summaryFrom: "",
   summaryTo: "",
   authed: false,
-  pin: null,
-  pinAttempting: false,
-  gateError: "",
+  user: null,
+  authChecking: true,
+  authMode: "login",
+  authBusy: false,
+  authError: "",
+  authInfo: "",
+  startingSession: false,
   syncStatus: "off",
   lastSynced: null,
   selectedIds: {},

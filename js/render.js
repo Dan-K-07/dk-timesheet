@@ -15,13 +15,48 @@ function render() {
 }
 
 function renderGate() {
+  var busy = state.authBusy ? " disabled" : "";
+  var msg = (state.authError ? '<div class="gate-error">' + escapeHtml(state.authError) + '</div>' : '') +
+    (state.authInfo ? '<div class="gate-info">' + escapeHtml(state.authInfo) + '</div>' : '');
+  var body;
+  if (state.authChecking) {
+    body = '<div class="gate-sub">Loading…</div>';
+  } else if (state.authMode === "forgot") {
+    body = '<div class="gate-sub">We’ll email you a link to set a new password.</div>' +
+      '<form id="authForm" data-mode="forgot" novalidate>' +
+        '<label class="auth-label" for="authEmail">Email</label>' +
+        '<input type="email" id="authEmail" class="field-input auth-input" autocomplete="username" required>' +
+        msg +
+        '<button type="submit" class="btn btn-primary auth-submit"' + busy + '>' + (state.authBusy ? "Sending…" : "Send reset link") + '</button>' +
+      '</form>' +
+      '<button type="button" class="link-btn" id="authBack">Back to log in</button>';
+  } else if (state.authMode === "reset") {
+    body = '<div class="gate-sub">Choose a new password.</div>' +
+      '<form id="authForm" data-mode="reset" novalidate>' +
+        '<label class="auth-label" for="authNewPassword">New password</label>' +
+        '<input type="password" id="authNewPassword" class="field-input auth-input" autocomplete="new-password" required>' +
+        '<label class="auth-label" for="authConfirmPassword">Confirm new password</label>' +
+        '<input type="password" id="authConfirmPassword" class="field-input auth-input" autocomplete="new-password" required>' +
+        msg +
+        '<button type="submit" class="btn btn-primary auth-submit"' + busy + '>' + (state.authBusy ? "Saving…" : "Save new password") + '</button>' +
+      '</form>' +
+      '<button type="button" class="link-btn" id="authBack">Back to log in</button>';
+  } else {
+    body = '<div class="gate-sub">Log in to continue</div>' +
+      '<form id="authForm" data-mode="login" novalidate>' +
+        '<label class="auth-label" for="authEmail">Email</label>' +
+        '<input type="email" id="authEmail" class="field-input auth-input" autocomplete="username" required>' +
+        '<label class="auth-label" for="authPassword">Password</label>' +
+        '<input type="password" id="authPassword" class="field-input auth-input" autocomplete="current-password" required>' +
+        msg +
+        '<button type="submit" class="btn btn-primary auth-submit"' + busy + '>' + (state.authBusy ? "Logging in…" : "Log in") + '</button>' +
+      '</form>' +
+      '<button type="button" class="link-btn" id="authForgot">Forgot password?</button>';
+  }
   return '' +
     '<div class="gate-wrap"><div class="card gate-card">' +
       '<div class="gate-mark">DK <span>Timesheet</span></div>' +
-      '<div class="gate-sub">Enter your PIN to continue</div>' +
-      '<input type="password" id="gatePin" class="field-input gate-input" placeholder="PIN" autocomplete="off" inputmode="text">' +
-      (state.gateError ? '<div class="gate-error">' + escapeHtml(state.gateError) + '</div>' : '') +
-      '<button class="btn btn-primary" id="gateSubmit" style="width:100%;margin-top:12px;"' + (state.pinAttempting ? " disabled" : "") + '>' + (state.pinAttempting ? "Checking\u2026" : "Unlock") + '</button>' +
+      body +
     '</div></div>';
 }
 
@@ -33,7 +68,7 @@ function renderTopbar() {
       '<div class="brand"><span class="mark">DK <span>Timesheet</span></span></div>' +
       '<div class="header-actions">' +
         '<span class="app-version" title="App version">v' + APP_VERSION + '</span>' +
-        '<span class="sync-btn" id="syncStatusPill" title="PIN ' + escapeHtml(maskPin(state.pin)) + '"><span class="sync-dot ' + state.syncStatus + '"></span><span class="sync-label">' + syncStatusLabel() + '</span></span>' +
+        '<span class="sync-btn" id="syncStatusPill" title="' + escapeHtml(state.user ? "Signed in as " + state.user.email : "Not connected") + '"><span class="sync-dot ' + state.syncStatus + '"></span><span class="sync-label">' + syncStatusLabel() + '</span></span>' +
         '<button class="btn btn-sm" id="logoutBtn">Log out</button>' +
         '<button class="theme-toggle" id="themeToggle">' + (isDark ? "Light mode" : "Dark mode") + '</button>' +
       '</div>' +
