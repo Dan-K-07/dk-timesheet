@@ -150,10 +150,18 @@ create policy "Owner can delete timesheet" on public.timesheet_sync
 
 create policy "Owner can read documents" on public.timesheet_documents
   for select to authenticated using ((select auth.uid()) = user_id);
+-- New records may only point at files in the user's own folder; otherwise
+-- a record could be used to reach someone else's file (see section 4).
 create policy "Owner can add documents" on public.timesheet_documents
-  for insert to authenticated with check ((select auth.uid()) = user_id);
+  for insert to authenticated with check (
+    (select auth.uid()) = user_id
+    and storage_path like (select auth.uid())::text || '/%'
+  );
 create policy "Owner can update documents" on public.timesheet_documents
-  for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+  for update to authenticated using ((select auth.uid()) = user_id) with check (
+    (select auth.uid()) = user_id
+    and storage_path like (select auth.uid())::text || '/%'
+  );
 create policy "Owner can delete documents" on public.timesheet_documents
   for delete to authenticated using ((select auth.uid()) = user_id);
 
