@@ -1,9 +1,10 @@
 "use strict";
 
 /* ============ Settings ============ */
-// Saved per device in this browser. To add a new setting: give it a default
-// in DEFAULT_SETTINGS, add a section to renderSettings() and wire it up in
-// attachSettingsEvents().
+// Saved to the account (the settings column on the timesheet row) so every
+// device matches, with a copy in this browser for offline use. To add a new
+// setting: give it a default in DEFAULT_SETTINGS, add a section to
+// renderSettings() and wire it up in attachSettingsEvents().
 var SETTINGS_KEY = "dk_timesheet_settings_v1";
 var DEFAULT_SETTINGS = {
   dateFormat: "ddd_d_mmm_yyyy",
@@ -109,16 +110,42 @@ function setTypeColor(type, hex) {
   applyTypeColors();
 }
 
+function normalizeSettings(saved) {
+  var s = Object.assign({}, DEFAULT_SETTINGS, saved && typeof saved === "object" ? saved : {});
+  if (!s.typeColors || typeof s.typeColors !== "object" || Array.isArray(s.typeColors)) s.typeColors = {};
+  return s;
+}
+function storeSettingsLocally() {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); } catch (e) {}
+}
 function loadSettings() {
   var saved = {};
   try { saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") || {}; } catch (e) {}
-  state.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
-  if (!state.settings.typeColors || typeof state.settings.typeColors !== "object") state.settings.typeColors = {};
+  state.settings = normalizeSettings(saved);
   applyTypeColors();
 }
 function saveSetting(key, value) {
   state.settings[key] = value;
-  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); } catch (e) {}
+  storeSettingsLocally();
+  scheduleSyncPush();
+}
+
+// What gets stored on the account.
+function settingsForSync() {
+  var out = {};
+  Object.keys(DEFAULT_SETTINGS).forEach(function (k) { out[k] = state.settings[k]; });
+  return out;
+}
+function hasCustomSettings() {
+  return JSON.stringify(settingsForSync()) !== JSON.stringify(normalizeSettings({}));
+}
+// Use the account's settings (from the server). Returns false if it has none yet.
+function applyAccountSettings(remote) {
+  if (!remote || typeof remote !== "object" || !Object.keys(remote).length) return false;
+  state.settings = normalizeSettings(remote);
+  storeSettingsLocally();
+  applyTypeColors();
+  return true;
 }
 
 function dateFormatById(id) {
@@ -166,7 +193,7 @@ function renderSettings() {
       '<p class="settings-help">Pick a colour for each day type, or choose a custom one. Text is adjusted automatically so it stays readable in light and dark mode.</p>' +
       typeRows +
     '</div>' +
-    '<p class="footnote">Settings are saved on this device only. Exports are not affected.</p>';
+    '<p class="footnote">Settings are saved to your account, so they\u2019re the same on every device you log in on. Light/dark mode is set per device. Exports are not affected.</p>';
 }
 
 function attachSettingsEvents() {

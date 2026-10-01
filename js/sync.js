@@ -34,7 +34,7 @@ function hasStoredSession() {
 function errMessage(e) { return e && e.message ? e.message : "unknown error"; }
 
 async function pushRow() {
-  var payload = { user_id: state.user.id, entries: state.entries, updated_by: getClientId(), updated_at: new Date().toISOString() };
+  var payload = { user_id: state.user.id, entries: state.entries, settings: settingsForSync(), updated_by: getClientId(), updated_at: new Date().toISOString() };
   var res = await sbClient.from(SYNC_TABLE).upsert(payload, { onConflict: "user_id" });
   if (res.error) throw res.error;
 }
@@ -65,6 +65,7 @@ function handleRemoteChange(payload) {
   if (row.updated_by === getClientId()) return; // our own write echoing back
   state.entries = row.entries || [];
   save(true);
+  applyAccountSettings(row.settings);
   state.lastSynced = new Date();
   state.syncStatus = "synced";
   toast("Updated from another device.");
@@ -164,11 +165,14 @@ async function startSession(user) {
   state.syncStatus = "connecting";
   render();
   try {
-    var res = await sbClient.from(SYNC_TABLE).select("entries,updated_at,updated_by").eq("user_id", user.id).maybeSingle();
+    var res = await sbClient.from(SYNC_TABLE).select("entries,settings,updated_at,updated_by").eq("user_id", user.id).maybeSingle();
     if (res.error) throw res.error;
     if (res.data) {
       state.entries = res.data.entries || [];
       save(true);
+      // The account's settings win. If it has none yet, this device's
+      // choices become the account's.
+      if (!applyAccountSettings(res.data.settings) && hasCustomSettings()) await pushRow();
     } else {
       // No timesheet saved for this account yet - seed it from this device.
       await pushRow();
