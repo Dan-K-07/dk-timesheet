@@ -297,7 +297,7 @@ function renderSummary() {
     '</div>';
   }
 
-  var barColors = { "Warehouse": "var(--warehouse)", "On Site": "var(--onsite)", "Holiday": "var(--holiday)", "Sick": "var(--sick)" };
+  var barColors = { "Warehouse": "var(--t-warehouse)", "On Site": "var(--t-onsite)", "Holiday": "var(--t-holiday)", "Sick": "var(--t-sick)" };
 
   var bars = ["Warehouse", "On Site", "Holiday", "Sick"].map(function (t) {
     var pct = Math.round(s.breakdown[t] * 1000) / 10;
