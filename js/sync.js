@@ -6,7 +6,7 @@ function syncStatusLabel() {
     case "connecting": return "Connecting\u2026";
     case "syncing": return "Syncing\u2026";
     case "synced": return "Synced";
-    case "error": return "Offline";
+    case "error": return hasUnsynced() ? "Saved offline" : "Offline";
     default: return "Sync";
   }
 }
@@ -39,31 +39,73 @@ async function pushRow() {
   if (res.error) throw res.error;
 }
 
+/* ---- Changes not yet sent ----
+   Edits are always saved on the device first. While the account hasn't
+   received them (no signal, or the send failed) the device remembers that,
+   and its copy is sent - rather than replaced by the account's - when it
+   reconnects. The note is tied to the account so it can't leak into
+   another one. */
+function storedUserId() {
+  try { var s = JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || "null"); return (s && s.user && s.user.id) || null; }
+  catch (e) { return null; }
+}
+function markUnsynced() {
+  var uid = state.user ? state.user.id : storedUserId();
+  if (!uid) return;
+  try { localStorage.setItem(UNSYNCED_KEY, JSON.stringify({ uid: uid, at: Date.now() })); } catch (e) {}
+}
+function unsyncedFor(uid) {
+  try { var d = JSON.parse(localStorage.getItem(UNSYNCED_KEY) || "null"); return d && uid && d.uid === uid ? d : null; }
+  catch (e) { return null; }
+}
+// Only clears if nothing new was changed while the send was in flight.
+function clearUnsynced(at) {
+  try {
+    var d = JSON.parse(localStorage.getItem(UNSYNCED_KEY) || "null");
+    if (d && d.at === at) localStorage.removeItem(UNSYNCED_KEY);
+  } catch (e) {}
+}
+function hasUnsynced() { return !!unsyncedFor(state.user ? state.user.id : storedUserId()); }
+
 function scheduleSyncPush() {
-  if (!state.authed || !state.user) return;
+  if (!state.authed) return;
+  markUnsynced();
+  if (!state.user) return; // offline: sent when the connection comes back
   clearTimeout(syncPushTimer);
   syncPushTimer = setTimeout(doSyncPush, 800);
 }
 async function doSyncPush() {
   syncPushTimer = null;
+  clearTimeout(syncRetryTimer);
+  syncRetryTimer = null;
   if (!state.user) return;
+  var pending = unsyncedFor(state.user.id);
   state.syncStatus = "syncing";
   updateSyncStatusUI();
   try {
     await pushRow();
+    if (pending) clearUnsynced(pending.at);
     state.syncStatus = "synced";
     state.lastSynced = new Date();
   } catch (e) {
     state.syncStatus = "error";
-    toast("Sync failed: " + errMessage(e));
+    // Venue wifi often drops without the browser noticing, so try again
+    // every 30 seconds as well as when the connection comes back.
+    syncRetryTimer = setTimeout(doSyncPush, 30000);
   }
   updateSyncStatusUI();
+}
+function retryUnsyncedNow() {
+  if (state.user && unsyncedFor(state.user.id) && !syncPushTimer) doSyncPush();
 }
 
 function handleRemoteChange(payload) {
   var row = payload && payload.new;
   if (!row) return;
   if (row.updated_by === getClientId()) return; // our own write echoing back
+  // This device has changes the account hasn't got yet: they're about to be
+  // sent and will replace this, so keep them rather than lose them.
+  if (unsyncedFor(state.user.id)) { retryUnsyncedNow(); return; }
   state.entries = row.entries || [];
   save(true);
   applyAccountSettings(row.settings);
@@ -120,9 +162,12 @@ function initAuth() {
     if (document.visibilityState === "hidden" && syncPushTimer) {
       clearTimeout(syncPushTimer);
       doSyncPush();
+    } else if (document.visibilityState === "visible") {
+      retryUnsyncedNow();
     }
   });
   window.addEventListener("online", function () {
+    retryUnsyncedNow();
     if (state.authed && !state.user) {
       client.auth.getSession().then(function (r) {
         if (r.data && r.data.session) startSession(r.data.session.user);
@@ -178,7 +223,14 @@ async function startSession(user) {
   try {
     var res = await sbClient.from(SYNC_TABLE).select("entries,settings,updated_at,updated_by").eq("user_id", user.id).maybeSingle();
     if (res.error) throw res.error;
-    if (res.data) {
+    var pending = unsyncedFor(user.id);
+    if (pending) {
+      // Changes made on this device while offline: send them instead of
+      // replacing them with the account's copy.
+      await pushRow();
+      clearUnsynced(pending.at);
+      toast("Back online \u2014 changes made on this device have been synced.");
+    } else if (res.data) {
       state.entries = res.data.entries || [];
       save(true);
       // The account's settings win. If it has none yet, this device's
@@ -206,6 +258,8 @@ async function startSession(user) {
 function endSession() {
   unsubscribeAll();
   clearTimeout(syncPushTimer);
+  clearTimeout(syncRetryTimer);
+  syncPushTimer = syncRetryTimer = null;
   state.authed = false;
   state.user = null;
   state.syncStatus = "off";

@@ -31,7 +31,9 @@ function attachEvents() {
   if (themeBtn) themeBtn.addEventListener("click", toggleTheme);
 
   bindIf("logoutBtn", "click", function () {
-    if (confirm("Log out? You'll need your email and password to get back in on this device.")) logout();
+    var msg = "Log out? You'll need your email and password to get back in on this device.";
+    if (hasUnsynced()) msg += "\n\nThis device has changes that haven't synced yet. They're kept here and will be sent the next time you log in on this device.";
+    if (confirm(msg)) logout();
   });
 
   document.querySelectorAll(".tab").forEach(function (btn) {
