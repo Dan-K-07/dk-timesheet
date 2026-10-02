@@ -85,8 +85,10 @@ function subscribeRealtime() {
 function unsubscribeAll() {
   if (realtimeChannel) { try { sbClient.removeChannel(realtimeChannel); } catch (e) {} }
   if (docChannel) { try { sbClient.removeChannel(docChannel); } catch (e) {} }
+  if (expenseChannel) { try { sbClient.removeChannel(expenseChannel); } catch (e) {} }
   realtimeChannel = null;
   docChannel = null;
+  expenseChannel = null;
 }
 
 /* ============ Auth (Supabase email + password) ============ */
@@ -180,6 +182,8 @@ async function startSession(user) {
     subscribeRealtime();
     subscribeDocRealtime();
     loadDocuments();
+    subscribeExpensesRealtime();
+    loadExpenses();
     state.syncStatus = "synced";
     state.lastSynced = new Date();
   } catch (e) {

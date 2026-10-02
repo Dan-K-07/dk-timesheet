@@ -38,6 +38,7 @@ function attachEvents() {
     btn.addEventListener("click", function () { state.tab = btn.getAttribute("data-tab"); render(); });
   });
   attachSettingsEvents();
+  attachExpenseEvents();
 
   bindIf("addBtn", "click", function () { state.adding = true; state.editingId = null; render(); scrollToForm(); });
   bindIf("emptyAdd", "click", function () { state.tab = "log"; state.adding = true; render(); scrollToForm(); });

@@ -6,8 +6,10 @@
 // setting: give it a default in DEFAULT_SETTINGS, add a section to
 // renderSettings() and wire it up in attachSettingsEvents().
 var SETTINGS_KEY = "dk_timesheet_settings_v1";
+var DEFAULT_EXPENSE_CATEGORIES = ["Rent", "Subscriptions", "Utilities", "Insurance", "Phone", "Vehicle", "Fuel", "Other"];
 var DEFAULT_SETTINGS = {
   dateFormat: "ddd_d_mmm_yyyy",
+  expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
   typeColors: {} // e.g. { "Warehouse": "#2c8c99" }; missing types use the theme colours
 };
 
@@ -113,7 +115,16 @@ function setTypeColor(type, hex) {
 function normalizeSettings(saved) {
   var s = Object.assign({}, DEFAULT_SETTINGS, saved && typeof saved === "object" ? saved : {});
   if (!s.typeColors || typeof s.typeColors !== "object" || Array.isArray(s.typeColors)) s.typeColors = {};
+  s.expenseCategories = cleanCategoryList(s.expenseCategories);
   return s;
+}
+function cleanCategoryList(list) {
+  var seen = {}, out = [];
+  (Array.isArray(list) ? list : []).forEach(function (c) {
+    var name = typeof c === "string" ? c.trim().slice(0, 40) : "";
+    if (name && !seen[name.toLowerCase()]) { seen[name.toLowerCase()] = true; out.push(name); }
+  });
+  return out.length ? out : DEFAULT_EXPENSE_CATEGORIES.slice();
 }
 function storeSettingsLocally() {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); } catch (e) {}
@@ -188,6 +199,7 @@ function renderSettings() {
       '<p class="settings-help">How dates appear in All Data and Documents. Examples use today’s date.</p>' +
       '<div class="settings-options">' + options + '</div>' +
     '</div>' +
+    renderCategorySettings() +
     '<div class="card calc-card settings-section">' +
       '<h3 class="settings-title">Day type colours</h3>' +
       '<p class="settings-help">Pick a colour for each day type, or choose a custom one. Text is adjusted automatically so it stays readable in light and dark mode.</p>' +
@@ -196,7 +208,70 @@ function renderSettings() {
     '<p class="footnote">Settings are saved to your account, so they\u2019re the same on every device you log in on. Light/dark mode is set per device. Exports are not affected.</p>';
 }
 
+function renderCategorySettings() {
+  var cats = expenseCategories();
+  var rows = cats.map(function (c, i) {
+    var used = state.expenses.filter(function (e) { return e.category === c; }).length;
+    return '<div class="category-row">' +
+      '<input type="text" class="field-input" maxlength="40" data-cat-index="' + i + '" value="' + escapeHtml(c) + '" aria-label="Category name">' +
+      '<span class="exp-muted category-used">' + (used ? used + " expense" + (used === 1 ? "" : "s") : "") + '</span>' +
+      '<button type="button" class="link-btn" data-cat-remove="' + i + '">Remove</button>' +
+    '</div>';
+  }).join("");
+  return '<div class="card calc-card settings-section">' +
+    '<h3 class="settings-title">Expense categories</h3>' +
+    '<p class="settings-help">Used on the Expenses tab. Renaming a category updates the expenses that use it.</p>' +
+    rows +
+    '<div class="category-row category-add">' +
+      '<input type="text" class="field-input" maxlength="40" id="newCategory" placeholder="New category">' +
+      '<button type="button" class="btn btn-sm" id="addCategory">Add</button>' +
+    '</div>' +
+  '</div>';
+}
+function categoryTaken(name, exceptIndex) {
+  return expenseCategories().some(function (c, i) { return i !== exceptIndex && c.toLowerCase() === name.toLowerCase(); });
+}
+function attachCategoryEvents() {
+  document.querySelectorAll("[data-cat-index]").forEach(function (input) {
+    input.addEventListener("keydown", function (ev) { if (ev.key === "Enter") input.blur(); });
+    input.addEventListener("change", function () {
+      var i = parseInt(input.getAttribute("data-cat-index"), 10), list = expenseCategories().slice();
+      var oldName = list[i], name = input.value.trim().slice(0, 40);
+      if (!name || name === oldName) { render(); return; }
+      if (categoryTaken(name, i)) { toast("There's already a category called \u201c" + name + "\u201d."); render(); return; }
+      if (!requireOnline()) { render(); return; }
+      list[i] = name;
+      saveSetting("expenseCategories", list);
+      renameExpenseCategory(oldName, name);
+      render();
+    });
+  });
+  document.querySelectorAll("[data-cat-remove]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var i = parseInt(btn.getAttribute("data-cat-remove"), 10), list = expenseCategories().slice(), name = list[i];
+      if (list.length === 1) { toast("Keep at least one category."); return; }
+      var used = state.expenses.filter(function (e) { return e.category === name; }).length;
+      if (used && !confirm(used + " expense" + (used === 1 ? " uses" : "s use") + " \u201c" + name + "\u201d. They'll keep it until you edit them. Remove it from the list?")) return;
+      list.splice(i, 1);
+      saveSetting("expenseCategories", list);
+      render();
+    });
+  });
+  var add = function () {
+    var input = document.getElementById("newCategory"), name = input.value.trim().slice(0, 40);
+    if (!name) return;
+    if (categoryTaken(name, -1)) { toast("There's already a category called \u201c" + name + "\u201d."); return; }
+    saveSetting("expenseCategories", expenseCategories().concat([name]));
+    render();
+    var again = document.getElementById("newCategory"); if (again) again.focus();
+  };
+  bindIf("addCategory", "click", add);
+  var newInput = document.getElementById("newCategory");
+  if (newInput) newInput.addEventListener("keydown", function (ev) { if (ev.key === "Enter") add(); });
+}
+
 function attachSettingsEvents() {
+  attachCategoryEvents();
   document.querySelectorAll('input[name="dateFormat"]').forEach(function (radio) {
     radio.addEventListener("change", function () { saveSetting("dateFormat", radio.value); render(); });
   });

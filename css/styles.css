@@ -212,6 +212,30 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 .type-color-row .link-btn { margin-top: 0; }
 
+/* ---------- Expenses ---------- */
+.section-sub { font-family: var(--font-ui); font-weight: 400; font-size: 12.5px; color: var(--ink-dim); margin-left: 6px; }
+.bar-tag.exp-cat { width: 120px; text-align: left; padding-left: 0; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.exp-cat-amount { width: 92px; text-align: right; font-family: var(--font-mono); font-size: 13px; }
+.exp-muted { color: var(--ink-dim); font-size: 12.5px; }
+.month-table tr.exp-gone td { color: var(--ink-dim); }
+.month-table td.exp-name-cell, .month-table td.exp-cat-cell, .month-table td.exp-status { font-family: var(--font-ui); }
+.month-table td.exp-status { color: var(--ink-dim); font-size: 12.5px; }
+.month-table tr.exp-future td { color: var(--ink-dim); }
+.month-table tr.exp-current td { background: var(--panel-2); }
+.month-table tfoot td { border-top: 2px solid var(--line); font-weight: 600; }
+.exp-neg { color: var(--danger); }
+.month-table td.num { white-space: nowrap; }
+.exp-pos { color: var(--holiday); }
+.exp-table .exp-name-cell { font-weight: 500; max-width: 220px; }
+.exp-note { font-size: 12px; color: var(--ink-dim); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+.exp-table tr.exp-paused td:not(.actions-cell) { opacity: 0.55; }
+.exp-year-select { width: auto; min-width: 150px; }
+.category-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+.category-row .field-input { flex: 1; min-width: 0; max-width: 260px; }
+.category-used { min-width: 0; white-space: nowrap; }
+.category-row .link-btn { margin-top: 0; }
+.category-add { margin-top: 8px; }
+
 /* ---------- Buttons ---------- */
 .btn {
   display: inline-flex; align-items: center; gap: 6px;
@@ -277,7 +301,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 /* ---------- Monthly table ---------- */
 table { width: 100%; border-collapse: collapse; }
-.month-table { padding: 4px 0; }
+.month-table { padding: 4px 0; overflow-x: auto; }
 .month-table table { }
 .month-table th, .month-table td { padding: 9px 14px; text-align: left; font-size: 13.5px; }
 .month-table th { color: var(--ink-dim); font-weight: 500; font-size: 12px; border-bottom: 1px solid var(--line); }
@@ -383,6 +407,10 @@ select, .field-input {
   .stat-grid { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: repeat(2, 1fr); }
   .bar-tag { width: 76px; font-size: 11.5px; }
+  .bar-tag.exp-cat { width: 90px; }
+  .exp-due .exp-cat-cell, .exp-due th.exp-cat-head { display: none; }
+  .month-table th, .month-table td { padding: 9px 10px; }
+  .exp-cat-amount { width: 76px; font-size: 12px; }
   /* Fade the right edge so it's clear more tabs scroll into view */
   .tabs {
     padding-right: 32px;

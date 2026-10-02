@@ -11,6 +11,7 @@ function load() {
   if (state.theme) document.documentElement.setAttribute("data-theme", state.theme);
   try { localStorage.removeItem(LEGACY_PIN_KEY); } catch (e) {}
   loadSettings();
+  loadExpensesCache();
 }
 function save(skipPush) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries)); } catch (e) {

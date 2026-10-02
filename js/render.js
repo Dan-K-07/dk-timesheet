@@ -8,7 +8,7 @@ function render() {
     attachGateEvents();
     return;
   }
-  var body = state.tab === "summary" ? renderSummary() : state.tab === "docs" ? renderDocuments() : state.tab === "calc" ? renderPayCalc() : state.tab === "settings" ? renderSettings() : renderLog();
+  var body = state.tab === "summary" ? renderSummary() : state.tab === "docs" ? renderDocuments() : state.tab === "calc" ? renderPayCalc() : state.tab === "expenses" ? renderExpenses() : state.tab === "settings" ? renderSettings() : renderLog();
   app.innerHTML = renderTopbar() + renderTabs() + body;
   scrollActiveTabIntoView();
   attachEvents();
@@ -82,6 +82,7 @@ function renderTabs() {
       '<button class="tab' + (state.tab === "log" ? " active" : "") + '" data-tab="log">All Data</button>' +
       '<button class="tab' + (state.tab === "docs" ? " active" : "") + '" data-tab="docs">Documents</button>' +
       '<button class="tab' + (state.tab === "calc" ? " active" : "") + '" data-tab="calc">Take-Home Pay</button>' +
+      '<button class="tab' + (state.tab === "expenses" ? " active" : "") + '" data-tab="expenses">Expenses</button>' +
       '<button class="tab' + (state.tab === "settings" ? " active" : "") + '" data-tab="settings">Settings</button>' +
     '</div>';
 }
