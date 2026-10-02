@@ -130,7 +130,27 @@ function currentPeriodStart(mode) {
   var p = isoParts(todayIso());
   return mode === "tax" && p[1] < 4 ? p[0] - 1 : p[0];
 }
+function earningsSource() { return (state.settings && state.settings.earningsSource) || "timesheet"; }
+function usingSalary() { return earningsSource() === "salary"; }
+// Timesheet pay is always before tax; salary / custom amounts can be either.
+function earningsAfterTax() { return earningsSource() !== "timesheet" && state.settings.earningsTaxBasis === "after"; }
+function usingCustomEarnings() { return earningsSource() === "custom"; }
+// Salary for one calendar month: annual / 12 from the latest pay change
+// that started on or before the end of that month.
+function salaryForMonth(y, m) {
+  var end = lastDayIso(y, m), annual = 0;
+  (state.settings.salaries || []).forEach(function (x) { if (x.from <= end) annual = x.annual; });
+  return annual / 12;
+}
 function earningsBetween(from, to) {
+  if (usingSalary() || usingCustomEarnings()) {
+    // Whole months from `from` to `to` (the year view always asks for whole months).
+    var a = isoParts(from), b = isoParts(to), total = 0, custom = state.settings.customEarnings || {};
+    for (var y = a[0], m = a[1]; y * 12 + m <= b[0] * 12 + b[1]; m === 12 ? (y++, m = 1) : m++) {
+      total += usingSalary() ? salaryForMonth(y, m) : (custom[y + "-" + pad2(m)] || 0);
+    }
+    return total;
+  }
   return state.entries.reduce(function (s, e) {
     if (!e.date || e.date < from || e.date > to) return s;
     var pay = computePay(e);
@@ -314,6 +334,10 @@ function sortedExpenses() {
 }
 // Like fmtPay but puts the minus before the pound sign: -£12.50
 function fmtMoney(n) { return n < 0 ? "-" + fmtPay(-n) : fmtPay(n); }
+function nextMonthKey(key) {
+  var p = key.split("-"), y = parseInt(p[0], 10), m = parseInt(p[1], 10);
+  return m === 12 ? (y + 1) + "-01" : y + "-" + pad2(m + 1);
+}
 function ordinal(n) {
   var s = ["th", "st", "nd", "rd"], v = n % 100;
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
@@ -460,6 +484,16 @@ function renderExpenses() {
     renderExpenseYearView();
 }
 
+function earningsSourceNote() {
+  if (usingCustomEarnings()) return Object.keys(state.settings.customEarnings || {}).length ? "Entered by you" : "Type each month\u2019s pay in the table below";
+  if (usingSalary()) return state.settings.salaries.length ? "From your salary" : "Add your salary in Settings";
+  return "From your timesheet";
+}
+function earningsInput(key) {
+  var v = (state.settings.customEarnings || {})[key];
+  return '<span class="earn-input-wrap">\u00A3<input type="number" min="0" step="0.01" inputmode="decimal" class="field-input earn-input" data-earn-month="' + key + '"' +
+    ' value="' + (v === undefined ? "" : v.toFixed(2)) + '" placeholder="0.00" aria-label="Earnings for ' + monthLabel(key) + '"></span>';
+}
 function renderExpenseYearView() {
   var mode = state.expYearMode === "tax" ? "tax" : "calendar";
   var choices = yearChoices(mode);
@@ -472,7 +506,7 @@ function renderExpenseYearView() {
     var future = m.key > current;
     return '<tr class="' + (future ? "exp-future" : "") + (m.key === current ? " exp-current" : "") + '">' +
       '<td class="m-label">' + monthLabel(m.key) + '</td>' +
-      '<td class="num">' + fmtPay(m.earnings) + '</td>' +
+      '<td class="num">' + (usingCustomEarnings() ? earningsInput(m.key) : fmtPay(m.earnings)) + '</td>' +
       '<td class="num">' + fmtPay(m.expenses) + '</td>' +
       '<td class="num ' + (m.left < 0 ? "exp-neg" : "") + '">' + fmtMoney(m.left) + '</td>' +
     '</tr>';
@@ -487,7 +521,7 @@ function renderExpenseYearView() {
       '<select id="expYearSelect" class="field-input exp-year-select">' + yearOpts + '</select>' +
     '</div>' +
     '<div class="stat-grid">' +
-      '<div class="card stat-card"><div class="stat-label">Earnings (before tax)</div><div class="stat-value">' + fmtPay(t.earnings) + '</div><div class="stat-sub">From your timesheet</div></div>' +
+      '<div class="card stat-card"><div class="stat-label">Earnings (' + (earningsAfterTax() ? "after" : "before") + ' tax)</div><div class="stat-value">' + fmtPay(t.earnings) + '</div><div class="stat-sub">' + earningsSourceNote() + '</div></div>' +
       '<div class="card stat-card"><div class="stat-label">Expenses</div><div class="stat-value">' + fmtPay(t.expenses) + '</div><div class="stat-sub">' + periodLabel(mode, year) + '</div></div>' +
       '<div class="card stat-card"><div class="stat-label">Left over</div><div class="stat-value ' + (t.left < 0 ? "exp-neg" : "exp-pos") + '">' + fmtMoney(t.left) + '</div><div class="stat-sub">Earnings minus expenses</div></div>' +
     '</div>' +
@@ -495,7 +529,13 @@ function renderExpenseYearView() {
       '<tbody>' + rows + '</tbody>' +
       '<tfoot><tr class="exp-total"><td class="m-label">Total</td><td class="num">' + fmtPay(t.earnings) + '</td><td class="num">' + fmtPay(t.expenses) + '</td><td class="num ' + (t.left < 0 ? "exp-neg" : "") + '">' + fmtMoney(t.left) + '</td></tr></tfoot>' +
     '</table></div>' +
-    '<p class="footnote">Earnings are your logged pay before tax, the same as the Summary tab — see Take-Home Pay for after-tax figures. Expenses count each payment in the month it falls, including one-offs. Paused expenses are left out. Later months (faded) only include what’s logged so far.</p>';
+    '<p class="footnote">' + (usingCustomEarnings()
+      ? 'Earnings are the ' + (earningsAfterTax() ? 'after-tax' : 'before-tax') + ' amounts you\u2019ve typed in for each month (change where they come from in Settings). '
+      : usingSalary()
+      ? 'Earnings are your salary ' + (earningsAfterTax() ? 'after tax' : 'before tax') + ' (annual \u00F7 12 each month), set in Settings' + (earningsAfterTax() ? '. ' : ' \u2014 see Take-Home Pay for after-tax figures. ')
+      : 'Earnings are your logged pay before tax, the same as the Summary tab \u2014 see Take-Home Pay for after-tax figures. You can use your salary or your own monthly amounts instead in Settings. ') +
+      'Expenses count each payment in the month it falls, including one-offs. Paused expenses are left out.' +
+      (earningsSource() === "timesheet" ? ' Later months (faded) only include what\u2019s logged so far.' : '') + '</p>';
 }
 
 function attachExpenseEvents() {
@@ -551,6 +591,26 @@ function attachExpenseEvents() {
     b.addEventListener("click", function () { state.expYearMode = b.getAttribute("data-exp-mode"); state.expYear = null; render(); });
   });
   bindIf("expYearSelect", "change", function (ev) { state.expYear = parseInt(ev.target.value, 10); render(); });
+  document.querySelectorAll("[data-earn-month]").forEach(function (input) {
+    input.addEventListener("keydown", function (ev) { if (ev.key === "Enter") input.blur(); });
+    input.addEventListener("change", function () {
+      var key = input.getAttribute("data-earn-month"), map = Object.assign({}, state.settings.customEarnings);
+      var v = parseFloat(input.value);
+      if (input.value.trim() === "") delete map[key];
+      else if (isNaN(v) || v < 0) { toast("Enter an amount of \u00A30 or more."); render(); return; }
+      else map[key] = Math.round(v * 100) / 100;
+      saveSetting("customEarnings", cleanCustomEarnings(map));
+      // Redraw once focus has moved, then put the cursor back where the user
+      // was going: the box they clicked, or the next month after Enter.
+      setTimeout(function () {
+        var active = document.activeElement, target = active && active.getAttribute && active.getAttribute("data-earn-month");
+        if (!target && (!active || active === document.body)) target = nextMonthKey(key);
+        render();
+        var el = target && document.querySelector('[data-earn-month="' + target + '"]');
+        if (el) { el.focus(); el.select(); }
+      }, 0);
+    });
+  });
 }
 function focusExpenseForm() {
   var el = document.getElementById("expenseForm");

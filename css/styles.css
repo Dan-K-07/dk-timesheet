@@ -235,6 +235,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .category-used { min-width: 0; white-space: nowrap; }
 .category-row .link-btn { margin-top: 0; }
 .category-add { margin-top: 8px; }
+.salary-list { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--line); }
+.salary-row { flex-wrap: wrap; align-items: flex-end; }
+.salary-field { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--ink-dim); flex: 1; min-width: 130px; max-width: 200px; }
+.salary-field .field-input { max-width: none; }
+.salary-month { padding-bottom: 9px; }
+.salary-row .link-btn { padding-bottom: 9px; }
+.salary-list .btn { margin-top: 8px; }
+.tax-basis { display: flex; align-items: center; gap: 4px 14px; flex-wrap: wrap; margin-top: 10px; font-size: 13.5px; }
+.tax-basis .settings-option { padding: 4px 6px; }
+.earn-input-wrap { display: inline-flex; align-items: center; gap: 3px; }
+.month-table .earn-input { width: 104px; padding: 4px 6px; font-family: var(--font-mono); font-size: 13px; text-align: right; }
 
 /* ---------- Buttons ---------- */
 .btn {

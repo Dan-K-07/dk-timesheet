@@ -10,6 +10,13 @@ var DEFAULT_EXPENSE_CATEGORIES = ["Rent", "Subscriptions", "Utilities", "Insuran
 var DEFAULT_SETTINGS = {
   dateFormat: "ddd_d_mmm_yyyy",
   expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
+  // Where the Expenses year view gets earnings from: "timesheet" (logged
+  // pay), "salary" (annual salary / 12, using the latest pay change) or
+  // "custom" (an amount typed in for each month in the year view).
+  earningsSource: "timesheet",
+  salaries: [], // [{ annual: 32000, from: "2026-04-01" }]
+  customEarnings: {}, // { "2026-04": 2650.5 }
+  earningsTaxBasis: "before", // salary / custom amounts are "before" or "after" tax
   typeColors: {} // e.g. { "Warehouse": "#2c8c99" }; missing types use the theme colours
 };
 
@@ -116,6 +123,10 @@ function normalizeSettings(saved) {
   var s = Object.assign({}, DEFAULT_SETTINGS, saved && typeof saved === "object" ? saved : {});
   if (!s.typeColors || typeof s.typeColors !== "object" || Array.isArray(s.typeColors)) s.typeColors = {};
   s.expenseCategories = cleanCategoryList(s.expenseCategories);
+  if (["timesheet", "salary", "custom"].indexOf(s.earningsSource) === -1) s.earningsSource = "timesheet";
+  s.salaries = cleanSalaryList(s.salaries);
+  s.customEarnings = cleanCustomEarnings(s.customEarnings);
+  if (s.earningsTaxBasis !== "after") s.earningsTaxBasis = "before";
   return s;
 }
 function cleanCategoryList(list) {
@@ -125,6 +136,22 @@ function cleanCategoryList(list) {
     if (name && !seen[name.toLowerCase()]) { seen[name.toLowerCase()] = true; out.push(name); }
   });
   return out.length ? out : DEFAULT_EXPENSE_CATEGORIES.slice();
+}
+function cleanSalaryList(list) {
+  return (Array.isArray(list) ? list : []).filter(function (x) {
+    return x && typeof x === "object" && /^\d{4}-\d{2}-\d{2}$/.test(x.from) && isFinite(x.annual) && Number(x.annual) >= 0;
+  }).map(function (x) {
+    return { annual: Math.round(Number(x.annual) * 100) / 100, from: x.from };
+  }).sort(function (a, b) { return a.from < b.from ? -1 : a.from > b.from ? 1 : 0; }).slice(0, 50);
+}
+function cleanCustomEarnings(map) {
+  var out = {};
+  if (!map || typeof map !== "object" || Array.isArray(map)) return out;
+  Object.keys(map).filter(function (k) { return /^\d{4}-(0[1-9]|1[0-2])$/.test(k); }).sort().slice(-600).forEach(function (k) {
+    var v = Number(map[k]);
+    if (map[k] !== null && map[k] !== "" && isFinite(v) && v >= 0) out[k] = Math.round(v * 100) / 100;
+  });
+  return out;
 }
 function storeSettingsLocally() {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); } catch (e) {}
@@ -200,6 +227,7 @@ function renderSettings() {
       '<div class="settings-options">' + options + '</div>' +
     '</div>' +
     renderCategorySettings() +
+    renderEarningsSettings() +
     '<div class="card calc-card settings-section">' +
       '<h3 class="settings-title">Day type colours</h3>' +
       '<p class="settings-help">Pick a colour for each day type, or choose a custom one. Text is adjusted automatically so it stays readable in light and dark mode.</p>' +
@@ -227,6 +255,80 @@ function renderCategorySettings() {
       '<button type="button" class="btn btn-sm" id="addCategory">Add</button>' +
     '</div>' +
   '</div>';
+}
+function renderEarningsSettings() {
+  var source = state.settings.earningsSource, list = state.settings.salaries, basis = state.settings.earningsTaxBasis;
+  var rows = list.map(function (x, i) {
+    return '<div class="category-row salary-row">' +
+      '<label class="salary-field">Annual salary (\u00A3, ' + (basis === "after" ? "after" : "before") + ' tax)<input type="number" min="0" step="0.01" class="field-input" data-salary-annual="' + i + '" value="' + x.annual + '"></label>' +
+      '<label class="salary-field">From<input type="date" class="field-input" data-salary-from="' + i + '" value="' + x.from + '"></label>' +
+      '<span class="exp-muted salary-month">' + fmtPay(x.annual / 12) + '/mo</span>' +
+      '<button type="button" class="link-btn" data-salary-remove="' + i + '">Remove</button>' +
+    '</div>';
+  }).join("");
+  return '<div class="card calc-card settings-section">' +
+    '<h3 class="settings-title">Earnings for Expenses</h3>' +
+    '<p class="settings-help">What the Expenses year view compares your expenses against.</p>' +
+    '<div class="settings-options">' +
+      '<label class="settings-option"><input type="radio" name="earningsSource" value="timesheet"' + (source === "timesheet" ? " checked" : "") + '> Pay logged in my timesheet</label>' +
+      '<label class="settings-option"><input type="radio" name="earningsSource" value="salary"' + (source === "salary" ? " checked" : "") + '> My salary</label>' +
+      '<label class="settings-option"><input type="radio" name="earningsSource" value="custom"' + (source === "custom" ? " checked" : "") + '> Amounts I enter for each month</label>' +
+    '</div>' +
+    (source !== "timesheet"
+      ? '<div class="tax-basis"><span class="exp-muted">These amounts are</span>' +
+          '<label class="settings-option"><input type="radio" name="earningsTaxBasis" value="before"' + (basis === "before" ? " checked" : "") + '> Before tax</label>' +
+          '<label class="settings-option"><input type="radio" name="earningsTaxBasis" value="after"' + (basis === "after" ? " checked" : "") + '> After tax (take-home)</label>' +
+        '</div>'
+      : '') +
+    (source === "custom"
+      ? '<p class="settings-help" style="margin-top:10px;">Type each month\u2019s pay into the Earnings column of the Year view on the Expenses tab. Months left blank count as \u00A30.</p>'
+      : '') +
+    (source === "salary"
+      ? '<div class="salary-list">' +
+          (rows || '<p class="exp-muted">Add your salary to get started.</p>') +
+          '<button type="button" class="btn btn-sm" id="addSalary">' + (list.length ? "+ Add a pay change" : "+ Add salary") + '</button>' +
+          '<p class="settings-help" style="margin-top:10px;">Each month counts as the annual salary \u00F7 12, using the latest pay change that started on or before that month. Add a new line when your pay changes so earlier months stay correct.</p>' +
+        '</div>'
+      : '') +
+  '</div>';
+}
+function updateSalaries(fn) {
+  var list = state.settings.salaries.map(function (x) { return { annual: x.annual, from: x.from }; });
+  fn(list);
+  saveSetting("salaries", cleanSalaryList(list));
+  render();
+}
+function attachEarningsEvents() {
+  document.querySelectorAll('input[name="earningsSource"]').forEach(function (r) {
+    r.addEventListener("change", function () { saveSetting("earningsSource", r.value); render(); });
+  });
+  document.querySelectorAll('input[name="earningsTaxBasis"]').forEach(function (r) {
+    r.addEventListener("change", function () { saveSetting("earningsTaxBasis", r.value); render(); });
+  });
+  bindIf("addSalary", "click", function () {
+    var list = state.settings.salaries, last = list[list.length - 1];
+    updateSalaries(function (l) { l.push({ annual: last ? last.annual : 0, from: todayIso() }); });
+  });
+  document.querySelectorAll("[data-salary-annual]").forEach(function (input) {
+    input.addEventListener("change", function () {
+      var v = parseFloat(input.value), i = parseInt(input.getAttribute("data-salary-annual"), 10);
+      if (isNaN(v) || v < 0) { toast("Enter a salary of \u00A30 or more."); render(); return; }
+      updateSalaries(function (l) { l[i].annual = v; });
+    });
+  });
+  document.querySelectorAll("[data-salary-from]").forEach(function (input) {
+    input.addEventListener("change", function () {
+      var i = parseInt(input.getAttribute("data-salary-from"), 10);
+      if (!input.value) { toast("Pick the date this salary started."); render(); return; }
+      updateSalaries(function (l) { l[i].from = input.value; });
+    });
+  });
+  document.querySelectorAll("[data-salary-remove]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var i = parseInt(btn.getAttribute("data-salary-remove"), 10);
+      updateSalaries(function (l) { l.splice(i, 1); });
+    });
+  });
 }
 function categoryTaken(name, exceptIndex) {
   return expenseCategories().some(function (c, i) { return i !== exceptIndex && c.toLowerCase() === name.toLowerCase(); });
@@ -272,6 +374,7 @@ function attachCategoryEvents() {
 
 function attachSettingsEvents() {
   attachCategoryEvents();
+  attachEarningsEvents();
   document.querySelectorAll('input[name="dateFormat"]').forEach(function (radio) {
     radio.addEventListener("change", function () { saveSetting("dateFormat", radio.value); render(); });
   });
