@@ -45,6 +45,7 @@ function scheduleSyncPush() {
   syncPushTimer = setTimeout(doSyncPush, 800);
 }
 async function doSyncPush() {
+  syncPushTimer = null;
   if (!state.user) return;
   state.syncStatus = "syncing";
   updateSyncStatusUI();
@@ -113,6 +114,14 @@ function initAuth() {
   setTimeout(function () {
     if (state.authChecking && hasStoredSession()) enterOfflineMode();
   }, 4000);
+  // Changes are sent 0.8s after the last edit. If the app is hidden first
+  // (switching apps, locking the phone, closing the tab), send them now.
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden" && syncPushTimer) {
+      clearTimeout(syncPushTimer);
+      doSyncPush();
+    }
+  });
   window.addEventListener("online", function () {
     if (state.authed && !state.user) {
       client.auth.getSession().then(function (r) {

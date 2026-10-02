@@ -17,6 +17,7 @@ var DEFAULT_SETTINGS = {
   salaries: [], // [{ annual: 32000, from: "2026-04-01" }]
   customEarnings: {}, // { "2026-04": 2650.5 }
   earningsTaxBasis: "before", // salary / custom amounts are "before" or "after" tax
+  taxCode: "", // used by the Take-Home Pay calculator, e.g. "1257L"
   typeColors: {} // e.g. { "Warehouse": "#2c8c99" }; missing types use the theme colours
 };
 
@@ -127,6 +128,7 @@ function normalizeSettings(saved) {
   s.salaries = cleanSalaryList(s.salaries);
   s.customEarnings = cleanCustomEarnings(s.customEarnings);
   if (s.earningsTaxBasis !== "after") s.earningsTaxBasis = "before";
+  s.taxCode = typeof s.taxCode === "string" ? s.taxCode.toUpperCase().replace(/[^A-Z0-9 \/]/g, "").slice(0, 12) : "";
   return s;
 }
 function cleanCategoryList(list) {

@@ -130,7 +130,7 @@ function attachEvents() {
   document.querySelectorAll("[data-calc-mode]").forEach(function (btn) {
     btn.addEventListener("click", function () { state.calcMode = btn.getAttribute("data-calc-mode"); render(); });
   });
-  ["calcGross", "calcRegion", "calcPensionPct", "calcPensionMethod", "calcLoanPlan"].forEach(function (id) {
+  ["calcGross", "calcRegion", "calcPensionPct", "calcPensionMethod", "calcLoanPlan", "calcTaxCode"].forEach(function (id) {
     var el = document.getElementById(id);
     if (!el) return;
     var handler = function () { if (state.calcMode === "monthly") updateMonthlyResults(); else updateCalcResults(); };
@@ -219,16 +219,32 @@ function updatePreview() {
   if (preview) preview.innerHTML = formPreviewText(vals);
 }
 
+// Save the tax code to the account and update the hint + region lock in place.
+function syncTaxCodeField() {
+  var input = document.getElementById("calcTaxCode");
+  if (!input) return;
+  var raw = input.value.toUpperCase().replace(/[^A-Z0-9 \/]/g, "").slice(0, 12);
+  if (raw !== (state.settings.taxCode || "")) saveSetting("taxCode", raw);
+  var code = parseTaxCode(raw), hint = document.getElementById("taxCodeHint"), region = document.getElementById("calcRegion");
+  if (hint) { hint.textContent = describeTaxCode(code); hint.className = "tax-code-hint" + (code && !code.valid ? " bad" : ""); }
+  if (region) {
+    var locked = !!(code && code.valid);
+    region.disabled = locked;
+    region.value = locked ? code.region : (state.calcRegion || "ew");
+  }
+}
 function updateCalcResults() {
+  syncTaxCodeField();
   var vals = {
     gross: parseFloat(document.getElementById("calcGross").value) || 0,
     region: document.getElementById("calcRegion").value,
     pensionPct: parseFloat(document.getElementById("calcPensionPct").value) || 0,
     pensionMethod: document.getElementById("calcPensionMethod").value,
-    loanPlan: document.getElementById("calcLoanPlan").value
+    loanPlan: document.getElementById("calcLoanPlan").value,
+    taxCode: state.settings.taxCode || ""
   };
   state.calcGross = vals.gross;
-  state.calcRegion = vals.region;
+  if (!document.getElementById("calcRegion").disabled) state.calcRegion = vals.region;
   state.calcPensionPct = vals.pensionPct;
   state.calcPensionMethod = vals.pensionMethod;
   state.calcLoanPlan = vals.loanPlan;
@@ -239,7 +255,8 @@ function updateCalcResults() {
 }
 
 function updateMonthlyResults() {
-  state.calcRegion = document.getElementById("calcRegion").value;
+  syncTaxCodeField();
+  if (!document.getElementById("calcRegion").disabled) state.calcRegion = document.getElementById("calcRegion").value;
   state.calcPensionPct = parseFloat(document.getElementById("calcPensionPct").value) || 0;
   state.calcPensionMethod = document.getElementById("calcPensionMethod").value;
   state.calcLoanPlan = document.getElementById("calcLoanPlan").value;
