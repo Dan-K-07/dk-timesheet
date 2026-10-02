@@ -1,7 +1,7 @@
 "use strict";
 
 /* ============ Constants ============ */
-var APP_VERSION = "2.2.0"; // bump this whenever you change the app
+var APP_VERSION = "2.6.0"; // bump this whenever you change the app
 var TYPES = ["Warehouse", "On Site", "Holiday", "Sick", "Off"];
 var TYPE_CLASS = { "Warehouse": "tag-Warehouse", "On Site": "tag-OnSite", "Holiday": "tag-Holiday", "Sick": "tag-Sick", "Off": "tag-Off" };
 var STORAGE_KEY = "dk_timesheet_entries_v1";
@@ -9,6 +9,8 @@ var RATE_KEY = "dk_timesheet_last_rate_v1";
 var THEME_KEY = "dk_timesheet_theme_v1";
 var LEGACY_PIN_KEY = "dk_timesheet_pin_v1"; // from the old PIN login; removed on load
 var AUTH_STORAGE_KEY = "dk_timesheet_auth_v1";
+var UNSYNCED_KEY = "dk_timesheet_unsynced_v1"; // { uid, at } while this device has changes the account hasn't got
+var syncRetryTimer = null;
 var CLIENT_ID_KEY = "dk_timesheet_client_id_v1";
 var SYNC_TABLE = "timesheet_sync";
 var MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -74,6 +76,11 @@ var state = {
   calcPensionMethod: "none",
   calcLoanPlan: "",
   calcMode: "annual",
+  expenses: [],
+  expAdding: false,
+  expEditingId: null,
+  expYearMode: "calendar",
+  expYear: null,
   settings: {}
 };
 

@@ -31,13 +31,16 @@ function attachEvents() {
   if (themeBtn) themeBtn.addEventListener("click", toggleTheme);
 
   bindIf("logoutBtn", "click", function () {
-    if (confirm("Log out? You'll need your email and password to get back in on this device.")) logout();
+    var msg = "Log out? You'll need your email and password to get back in on this device.";
+    if (hasUnsynced()) msg += "\n\nThis device has changes that haven't synced yet. They're kept here and will be sent the next time you log in on this device.";
+    if (confirm(msg)) logout();
   });
 
   document.querySelectorAll(".tab").forEach(function (btn) {
     btn.addEventListener("click", function () { state.tab = btn.getAttribute("data-tab"); render(); });
   });
   attachSettingsEvents();
+  attachExpenseEvents();
 
   bindIf("addBtn", "click", function () { state.adding = true; state.editingId = null; render(); scrollToForm(); });
   bindIf("emptyAdd", "click", function () { state.tab = "log"; state.adding = true; render(); scrollToForm(); });
@@ -129,7 +132,7 @@ function attachEvents() {
   document.querySelectorAll("[data-calc-mode]").forEach(function (btn) {
     btn.addEventListener("click", function () { state.calcMode = btn.getAttribute("data-calc-mode"); render(); });
   });
-  ["calcGross", "calcRegion", "calcPensionPct", "calcPensionMethod", "calcLoanPlan"].forEach(function (id) {
+  ["calcGross", "calcRegion", "calcPensionPct", "calcPensionMethod", "calcLoanPlan", "calcTaxCode"].forEach(function (id) {
     var el = document.getElementById(id);
     if (!el) return;
     var handler = function () { if (state.calcMode === "monthly") updateMonthlyResults(); else updateCalcResults(); };
@@ -218,16 +221,32 @@ function updatePreview() {
   if (preview) preview.innerHTML = formPreviewText(vals);
 }
 
+// Save the tax code to the account and update the hint + region lock in place.
+function syncTaxCodeField() {
+  var input = document.getElementById("calcTaxCode");
+  if (!input) return;
+  var raw = input.value.toUpperCase().replace(/[^A-Z0-9 \/]/g, "").slice(0, 12);
+  if (raw !== (state.settings.taxCode || "")) saveSetting("taxCode", raw);
+  var code = parseTaxCode(raw), hint = document.getElementById("taxCodeHint"), region = document.getElementById("calcRegion");
+  if (hint) { hint.textContent = describeTaxCode(code); hint.className = "tax-code-hint" + (code && !code.valid ? " bad" : ""); }
+  if (region) {
+    var locked = !!(code && code.valid);
+    region.disabled = locked;
+    region.value = locked ? code.region : (state.calcRegion || "ew");
+  }
+}
 function updateCalcResults() {
+  syncTaxCodeField();
   var vals = {
     gross: parseFloat(document.getElementById("calcGross").value) || 0,
     region: document.getElementById("calcRegion").value,
     pensionPct: parseFloat(document.getElementById("calcPensionPct").value) || 0,
     pensionMethod: document.getElementById("calcPensionMethod").value,
-    loanPlan: document.getElementById("calcLoanPlan").value
+    loanPlan: document.getElementById("calcLoanPlan").value,
+    taxCode: state.settings.taxCode || ""
   };
   state.calcGross = vals.gross;
-  state.calcRegion = vals.region;
+  if (!document.getElementById("calcRegion").disabled) state.calcRegion = vals.region;
   state.calcPensionPct = vals.pensionPct;
   state.calcPensionMethod = vals.pensionMethod;
   state.calcLoanPlan = vals.loanPlan;
@@ -238,7 +257,8 @@ function updateCalcResults() {
 }
 
 function updateMonthlyResults() {
-  state.calcRegion = document.getElementById("calcRegion").value;
+  syncTaxCodeField();
+  if (!document.getElementById("calcRegion").disabled) state.calcRegion = document.getElementById("calcRegion").value;
   state.calcPensionPct = parseFloat(document.getElementById("calcPensionPct").value) || 0;
   state.calcPensionMethod = document.getElementById("calcPensionMethod").value;
   state.calcLoanPlan = document.getElementById("calcLoanPlan").value;

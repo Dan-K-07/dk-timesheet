@@ -8,7 +8,7 @@ function render() {
     attachGateEvents();
     return;
   }
-  var body = state.tab === "summary" ? renderSummary() : state.tab === "docs" ? renderDocuments() : state.tab === "calc" ? renderPayCalc() : state.tab === "settings" ? renderSettings() : renderLog();
+  var body = state.tab === "summary" ? renderSummary() : state.tab === "docs" ? renderDocuments() : state.tab === "calc" ? renderPayCalc() : state.tab === "expenses" ? renderExpenses() : state.tab === "settings" ? renderSettings() : renderLog();
   app.innerHTML = renderTopbar() + renderTabs() + body;
   scrollActiveTabIntoView();
   attachEvents();
@@ -82,6 +82,7 @@ function renderTabs() {
       '<button class="tab' + (state.tab === "log" ? " active" : "") + '" data-tab="log">All Data</button>' +
       '<button class="tab' + (state.tab === "docs" ? " active" : "") + '" data-tab="docs">Documents</button>' +
       '<button class="tab' + (state.tab === "calc" ? " active" : "") + '" data-tab="calc">Take-Home Pay</button>' +
+      '<button class="tab' + (state.tab === "expenses" ? " active" : "") + '" data-tab="expenses">Expenses</button>' +
       '<button class="tab' + (state.tab === "settings" ? " active" : "") + '" data-tab="settings">Settings</button>' +
     '</div>';
 }
@@ -168,7 +169,8 @@ function readCalcState() {
     region: state.calcRegion || "ew",
     pensionPct: state.calcPensionPct || 0,
     pensionMethod: state.calcPensionMethod || "none",
-    loanPlan: state.calcLoanPlan || ""
+    loanPlan: state.calcLoanPlan || "",
+    taxCode: (state.settings && state.settings.taxCode) || ""
   };
 }
 function renderCalcResults(vals) {
@@ -195,10 +197,15 @@ function renderCalcResults(vals) {
     '</tbody><tfoot><tr style="font-weight:600;border-top:2px solid var(--line);"><td>Take-home pay</td><td class="num">' + fmtPay(r.net) + '</td><td class="num">' + fmtPay(r.net / 12) + '</td><td class="num">' + fmtPay(r.net / 52) + '</td></tr></tfoot></table></div>';
 }
 function renderRegionLoanPensionFields(vals) {
+  var code = parseTaxCode(vals.taxCode), locked = code && code.valid;
   return '' +
-    '<div class="field"><label>Region</label><select id="calcRegion" class="field-input">' +
-      '<option value="ew"' + (vals.region !== "scotland" ? " selected" : "") + '>England / Wales / NI</option>' +
-      '<option value="scotland"' + (vals.region === "scotland" ? " selected" : "") + '>Scotland</option>' +
+    '<div class="field full"><label>Tax code (optional)</label>' +
+      '<input type="text" id="calcTaxCode" class="field-input tax-code-input" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="e.g. 1257L" value="' + escapeHtml(vals.taxCode) + '">' +
+      '<div id="taxCodeHint" class="tax-code-hint' + (code && !code.valid ? " bad" : "") + '">' + escapeHtml(describeTaxCode(code)) + '</div>' +
+    '</div>' +
+    '<div class="field"><label>Region' + (locked ? ' <span class="exp-muted">(set by tax code)</span>' : '') + '</label><select id="calcRegion" class="field-input"' + (locked ? " disabled" : "") + '>' +
+      '<option value="ew"' + ((locked ? code.region : vals.region) !== "scotland" ? " selected" : "") + '>England / Wales / NI</option>' +
+      '<option value="scotland"' + ((locked ? code.region : vals.region) === "scotland" ? " selected" : "") + '>Scotland</option>' +
     '</select></div>' +
     '<div class="field"><label>Student loan</label><select id="calcLoanPlan" class="field-input">' +
       '<option value="">None</option>' +
