@@ -146,7 +146,9 @@ function renderDocPage(id) {
         field("Number", bound("doc", d.id, "number", d.number, { rerender: true })) +
         field("Purchase order", bound("doc", d.id, "po", d.po, { rerender: true })) +
         field("Description", bound("doc", d.id, "summary", d.summary, { type: "textarea", rows: 2, rerender: true }), "full") +
-        field("Terms / notes at the bottom", bound("doc", d.id, "terms", d.terms, { type: "textarea", rows: 2, rerender: true }), "full") +
+        field("Terms / notes at the bottom", bound("doc", d.id, "terms", d.terms, { type: "textarea", rows: 2, rerender: true, placeholder: "Leave blank for none" }) +
+          (state.data.settings.termsText && d.terms !== state.data.settings.termsText ?
+            '<div class="btn-row terms-btns">' + btn("Use terms from Settings", "doc-terms-template", { id: d.id, cls: "btn-sm" }) + '</div>' : ""), "full") +
       '</div>' +
       '<div class="log-table-wrap"><table class="log-table items-table"><thead><tr><th>Description</th><th class="qty-cell">Qty</th><th class="price-cell">Price</th><th class="actions-col"></th></tr></thead><tbody>' + items + '</tbody></table></div>' +
       '<div class="btn-row items-actions">' + btn("＋ Add line", "doc-item-add", { id: d.id, cls: "btn-sm" }) + '</div></div>';

@@ -192,8 +192,7 @@ function renderSettings() {
   var sec = function (title, help, inner) {
     return '<div class="card settings-card"><div class="settings-title">' + title + '</div>' + (help ? '<p class="settings-help">' + help + '</p>' : "") + inner + '</div>';
   };
-  return '<div class="settings-grid">' +
-    sec("Your business", "Shown at the top of your quotes and invoices.", '<div class="form-grid">' +
+  var business = sec("Your business", "Shown at the top of your quotes and invoices.", '<div class="form-grid">' +
       field("Business / trading name", bound(id, id, "businessName", s.businessName, { placeholder: "e.g. DK Event Services" }), "span-2") +
       field("Your name", bound(id, id, "yourName", s.yourName)) +
       field("Phone", bound(id, id, "phone", s.phone, { type: "tel" })) +
@@ -202,15 +201,15 @@ function renderSettings() {
       field("Business address", bound(id, id, "address", s.address, { type: "textarea", rows: 3 }), "full") +
       '<div class="field full"><label>Logo</label><div class="btn-row">' + (s.logo ? '<img class="logo-preview" src="' + attr(s.logo) + '" alt="Logo">' : "") +
         '<input type="file" accept="image/*" id="logoFile" class="field-input logo-input">' + (s.logo ? btn("Remove logo", "logo-remove", { cls: "btn-sm" }) : "") + '</div></div>' +
-    '</div>') +
-    sec("Bank details", "Printed on invoices so clients know where to pay.", '<div class="form-grid">' +
+    '</div>');
+  var bank = sec("Bank details", "Printed on invoices so clients know where to pay.", '<div class="form-grid">' +
       field("Bank", bound(id, id, "bankName", s.bankName), "span-2") +
       field("Account name", bound(id, id, "accountName", s.accountName), "span-2") +
       field("Sort code", bound(id, id, "sortCode", s.sortCode, { placeholder: "00-00-00" })) +
       field("Account number", bound(id, id, "accountNumber", s.accountNumber)) +
       '<div class="field span-2 check-field"><label class="check-label">' + bound(id, id, "showBankOnQuotes", s.showBankOnQuotes, { type: "checkbox" }) + ' Show on quotes too</label></div>' +
-    '</div>') +
-    sec("Quotes & invoices", "Use {days} in the terms and it’s replaced with the job’s payment terms.", '<div class="form-grid">' +
+    '</div>');
+  var quotes = sec("Quotes & invoices", "Use {days} in the terms and it’s replaced with the job’s payment terms.", '<div class="form-grid">' +
       field("Invoice prefix", bound(id, id, "invoicePrefix", s.invoicePrefix)) +
       field("Next invoice number", bound(id, id, "nextInvoiceNo", s.nextInvoiceNo, { num: true, type: "number" })) +
       field("Quote prefix", bound(id, id, "quotePrefix", s.quotePrefix)) +
@@ -218,22 +217,28 @@ function renderSettings() {
       field("Default payment terms (days)", bound(id, id, "paymentTerms", s.paymentTerms, { num: true, type: "number" })) +
       field("Quotes valid for (days)", bound(id, id, "quoteValidDays", s.quoteValidDays || 30, { num: true, type: "number" })) +
       field("Terms printed at the bottom", bound(id, id, "termsText", s.termsText, { type: "textarea", rows: 3 }), "full") +
-    '</div>') +
-    sec("Tax", "", '<div class="form-grid">' +
+    '</div>');
+  var tax = sec("Tax", "", '<div class="form-grid">' +
       field("Count income", bound(id, id, "accountingBasis", s.accountingBasis || "cash", { type: "select", options: [{ value: "cash", label: "When paid (cash basis — most sole traders)" }, { value: "accruals", label: "On invoice date (accruals)" }] }), "span-2") +
       '<div class="field span-2 check-field"><label class="check-label">' + bound(id, id, "vatRegistered", s.vatRegistered, { type: "checkbox", rerender: true }) + ' I’m VAT registered</label></div>' +
       (s.vatRegistered ? field("VAT number", bound(id, id, "vatNumber", s.vatNumber)) + field("VAT rate %", bound(id, id, "vatRate", s.vatRate, { num: true, type: "number" })) : "") +
-    '</div>') +
-    sec("Mileage", "HMRC rates for cars and vans: 55p a mile for the first 10,000 business miles in a tax year from 6 April 2026 (45p before), then 25p.", '<div class="form-grid">' +
+    '</div>');
+  var mileage = sec("Mileage", "HMRC rates for cars and vans: 55p a mile for the first 10,000 business miles in a tax year from 6 April 2026 (45p before), then 25p.", '<div class="form-grid">' +
       field("Usual starting point", bound(id, id, "homeAddress", s.homeAddress, { placeholder: "Your home postcode" }), "span-2") +
-      field("Rate up to threshold (£)", bound(id, id, "mileageRateHigh", s.mileageRateHigh, { num: true })) +
-      field("Rate after (£)", bound(id, id, "mileageRateLow", s.mileageRateLow, { num: true })) +
-      field("Threshold (miles)", bound(id, id, "mileageThreshold", s.mileageThreshold, { num: true, type: "number" })) +
-      field("Default charge to clients (£/mile)", bound(id, id, "mileageBillRate", s.mileageBillRate || 0.45, { num: true })) +
-    '</div>') +
-    sec("Expense categories", "Each category is linked to the HMRC category it’s reported under.", catRows +
-      '<div class="btn-row category-add">' + btn("＋ Add category", "cat-add", { cls: "btn-sm" }) + '</div>') +
-    sec("Backup", "Download everything as a file you can keep, or restore from one. Receipts stay in your online storage.",
-      '<div class="btn-row">' + btn("Download backup", "backup-export") + btn("Restore from backup…", "backup-import") + '<input type="file" id="backupFile" accept=".json,application/json" hidden></div>') +
-  '</div>';
+      field("Threshold (miles a tax year)", bound(id, id, "mileageThreshold", s.mileageThreshold, { num: true, type: "number" }), "span-2") +
+      field("Rate up to threshold (£/mile)", bound(id, id, "mileageRateHigh", s.mileageRateHigh, { num: true })) +
+      field("Rate after threshold (£/mile)", bound(id, id, "mileageRateLow", s.mileageRateLow, { num: true })) +
+      field("Default charge to clients (£/mile)", bound(id, id, "mileageBillRate", s.mileageBillRate || 0.45, { num: true }), "span-2") +
+    '</div>');
+  var categories = sec("Expense categories", "Each category is linked to the HMRC category it’s reported under.", catRows +
+      '<div class="btn-row category-add">' + btn("＋ Add category", "cat-add", { cls: "btn-sm" }) + '</div>');
+  var backup = '<div class="card settings-card backup-card"><div><div class="settings-title">Backup</div>' +
+      '<p class="settings-help">Download everything as a file you can keep, or restore from one. Receipts stay in your online storage.</p></div>' +
+      '<div class="btn-row">' + btn("Download backup", "backup-export") + btn("Restore from backup…", "backup-import") + '<input type="file" id="backupFile" accept=".json,application/json" hidden></div></div>';
+  // Two columns that stack on their own (no gaps under short cards), with
+  // Backup across the bottom.
+  return '<div class="settings-grid">' +
+      '<div class="settings-col">' + business + quotes + tax + mileage + '</div>' +
+      '<div class="settings-col">' + bank + categories + '</div>' +
+    '</div>' + backup;
 }

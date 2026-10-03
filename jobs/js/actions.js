@@ -50,7 +50,7 @@ function createDocFromJob(jobId, kind) {
     title: j.title, venue: j.venue, jobDates: jobDateText(j) === "No date" ? "" : jobDateText(j),
     po: j.po, summary: j.summary, date: date,
     due: addDays(date, kind === "invoice" ? terms : (num(s.quoteValidDays) || 30)),
-    termsDays: terms, terms: s.termsText, vatRate: vatOn() ? num(s.vatRate) : 0, items: []
+    termsDays: terms, terms: kind === "invoice" ? s.termsText : "", vatRate: vatOn() ? num(s.vatRate) : 0, items: []
   };
   if (kind === "quote") {
     d.items = (j.items || []).map(function (it) { return { id: uid("i"), desc: it.desc, qty: num(it.qty), price: num(it.price) }; });
@@ -336,6 +336,7 @@ var ACTIONS = {
     d.id = uid("v"); d.kind = "invoice"; d.number = nextDocNumber("invoice"); d.status = "draft"; d.date = date;
     d.due = addDays(date, num(d.termsDays) || num(s.paymentTerms) || 30);
     d.items.forEach(function (i) { i.id = uid("i"); delete i.src; });
+    if (!d.terms) d.terms = s.termsText;
     q.status = "accepted";
     state.data.invoices.push(d); save(); go("doc", d.id);
   },
@@ -360,6 +361,10 @@ var ACTIONS = {
     var s = state.data.settings, key = d.kind === "quote" ? "nextQuoteNo" : "nextInvoiceNo", prefix = d.kind === "quote" ? s.quotePrefix : s.invoicePrefix;
     if (d.number === prefix + String(num(s[key]) - 1).padStart(4, "0")) s[key] = num(s[key]) - 1;
     save(); history.length > 1 ? history.back() : go("invoices");
+  },
+  "doc-terms-template": function (id) {
+    var d = byId(state.data.invoices, id);
+    d.terms = state.data.settings.termsText || ""; render();
   },
   "doc-item-add": function (id) { var d = byId(state.data.invoices, id); d.items.push({ id: uid("i"), desc: "", qty: 1, price: 0 }); render(); },
   "doc-item-del": function (id, el) {

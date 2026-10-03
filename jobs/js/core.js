@@ -7,7 +7,7 @@
    to the other.
    ===================================================================== */
 
-var JOBS_VERSION = "1.2.0"; // bump this whenever you change the Jobs app
+var JOBS_VERSION = "1.3.0"; // bump this whenever you change the Jobs app
 var SUPABASE_URL = "https://axiqpqjquywvzymmzwgr.supabase.co";
 var SUPABASE_ANON_KEY = "sb_publishable_gO1jSR_OETTKmwCz-hEb3w_JUYS1tik";
 var AUTH_STORAGE_KEY = "dk_timesheet_auth_v1"; // shared with the timesheet
