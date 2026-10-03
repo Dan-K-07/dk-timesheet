@@ -26,6 +26,13 @@ var ICONS = {
   car: '<path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3z"/><circle cx="7.5" cy="13" r="1"/><circle cx="16.5" cy="13" r="1"/>',
   chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>',
+  bin: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  pencil: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+  chevron: '<path d="M6 9l6 6 6-6"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
+  phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   swap: '<path d="M7 7h13l-4-4M17 17H4l4 4"/>',
@@ -75,6 +82,8 @@ window.addEventListener("hashchange", function () {
   state.expAdding = state.mileAdding = state.clientAdding = state.productAdding = false;
   state.expEditingId = state.mileEditingId = state.clientEditingId = state.productEditingId = null;
   state.formKey = null;
+  state.clientEditing = !!state.pendingClientEdit; state.pendingClientEdit = false;
+  state.projectNaming = false;
   var pending = state.pendingForm; state.pendingForm = null;
   if (pending === "expense") state.expAdding = true;
   if (pending === "mileage") state.mileAdding = true;
@@ -134,6 +143,9 @@ function showModal(opts) {
       busy = true;
       Promise.resolve(b.run ? b.run() : true).then(function (ok) { busy = false; if (ok !== false) closeModal(); });
     });
+  });
+  host.querySelectorAll("input").forEach(function (inp) {
+    inp.addEventListener("keydown", function (ev) { if (ev.key === "Enter") { ev.preventDefault(); host.querySelector("[data-modal-btn]").click(); } });
   });
   host.querySelector(".modal-scrim").addEventListener("click", function (ev) { if (ev.target === ev.currentTarget) closeModal(); });
   var first = host.querySelector(opts.focus || ".modal-btn"); if (first) first.focus();
@@ -471,14 +483,23 @@ function renderJobPage(id) {
   var products = state.data.products.filter(function (p) { return p.active !== false; });
   var un = jobUninvoiced(j);
 
+  // Each date is a "calendar entry": dates, All Day, or start and end times.
+  var s = state.data.settings, askedShown = false;
   var dates = (j.dates || []).map(function (dt, i) {
-    return '<div class="date-row">' +
-      field(i === 0 ? "Start" : "Start", bound("job-dates", j.id, "start", dt.start, { sub: dt.id, type: "date", rerender: true })) +
-      field("End", bound("job-dates", j.id, "end", dt.end, { sub: dt.id, type: "date", rerender: true })) +
-      field("From", bound("job-dates", j.id, "startTime", dt.startTime, { sub: dt.id, type: "time" })) +
-      field("To", bound("job-dates", j.id, "endTime", dt.endTime, { sub: dt.id, type: "time" })) +
-      field("Label", bound("job-dates", j.id, "label", dt.label, { sub: dt.id, placeholder: "e.g. Get in" })) +
-      '<button class="btn btn-ghost btn-sm btn-danger row-x" data-action="job-date-del" data-id="' + attr(j.id) + '" data-sub="' + attr(dt.id) + '" title="Remove date">✕</button>' +
+    var ask = dt.allDay && !s.allDayAsked && !s.defaultAllDay && !askedShown;
+    if (ask) askedShown = true;
+    return '<div class="cal-entry">' +
+      (i > 0 ? '<div class="cal-head"><span>Calendar Entry ' + (i + 1) + '</span><button class="icon-only btn-danger" data-action="job-date-del" data-id="' + attr(j.id) + '" data-sub="' + attr(dt.id) + '" title="Remove this entry">' + icon("bin") + '</button></div>' : "") +
+      '<div class="cal-grid">' +
+        field("Start Date", bound("job-dates", j.id, "start", dt.start, { sub: dt.id, type: "date", rerender: true })) +
+        field("End Date", bound("job-dates", j.id, "end", dt.end || dt.start, { sub: dt.id, type: "date", rerender: true })) +
+      '</div>' +
+      '<label class="check-label cal-allday">' + bound("job-dates", j.id, "allDay", dt.allDay, { sub: dt.id, type: "checkbox", rerender: true }) + ' All Day Event</label>' +
+      (ask ? '<div class="cal-ask"><span>Make All Day your default for new jobs?</span><span class="btn-row">' + btn("Yes", "allday-default", { id: "yes", cls: "btn-primary btn-sm" }) + btn("No thanks", "allday-default", { id: "no", cls: "btn-sm" }) + '</span></div>' : "") +
+      (dt.allDay ? "" : '<div class="cal-grid">' +
+        field("Start Time", bound("job-dates", j.id, "startTime", dt.startTime, { sub: dt.id, type: "time" })) +
+        field("End Time", bound("job-dates", j.id, "endTime", dt.endTime, { sub: dt.id, type: "time" })) + '</div>') +
+      '<div class="cal-label">' + field("Label (optional)", bound("job-dates", j.id, "label", dt.label, { sub: dt.id, placeholder: "e.g. Get in, Show day, Get out" })) + '</div>' +
     '</div>';
   }).join("");
 
@@ -509,14 +530,17 @@ function renderJobPage(id) {
         field("Client", bound("job", j.id, "clientId", j.clientId, { type: "select", options: clientOptions(true), rerender: true })) +
         field("Status", bound("job", j.id, "status", j.status, { type: "select", options: JOB_STATUSES, rerender: true })) +
         field("Venue / location", bound("job", j.id, "venue", j.venue), "span-2") +
+        (j.clientId ? field("Project", bound("job", j.id, "projectId", j.projectId || "", { type: "select", rerender: true,
+          options: [{ value: "", label: "— Not in a project —" }].concat(state.data.projects.filter(function (p) { return p.clientId === j.clientId; })
+            .map(function (p) { return { value: p.id, label: p.name }; })) }), "span-2") : "") +
         field("Purchase order", bound("job", j.id, "po", j.po)) +
         field("Payment terms (days)", bound("job", j.id, "terms", j.terms, { num: true, type: "number", placeholder: String(state.data.settings.paymentTerms) })) +
         field("Description shown on quotes and invoices", bound("job", j.id, "summary", j.summary, { type: "textarea", rows: 2 }), "full") +
         field("Private notes (never printed)", bound("job", j.id, "notes", j.notes, { type: "textarea", rows: 2 }), "full") +
       '</div>' +
     '</div>' +
-    '<div class="section-title">Dates</div><div class="card job-card">' + (dates || '<div class="list-empty">No dates yet.</div>') +
-      '<div class="btn-row">' + btn("＋ Add date", "job-date-add", { id: j.id, cls: "btn-sm" }) + '</div></div>' +
+    '<div class="section-title">Schedule</div><div class="card job-card cal-card">' + (dates || '<div class="list-empty">No dates yet.</div>') +
+      '<button class="link-add" data-action="job-date-add" data-id="' + attr(j.id) + '">＋ Add Another Calendar Entry</button></div>' +
     '<div class="section-title">Charges</div><div class="card items-card"><div class="log-table-wrap"><table class="log-table items-table">' +
       '<thead><tr><th>Description</th><th class="qty-cell">Qty</th><th class="price-cell">Unit price</th><th class="num">Total</th><th class="actions-col"></th></tr></thead>' +
       '<tbody>' + (items || '<tr><td colspan="5" class="list-empty">No charges yet. Add a line or pick from your price list.</td></tr>') + '</tbody>' +
