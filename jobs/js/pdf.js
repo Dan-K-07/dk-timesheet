@@ -118,10 +118,13 @@ function buildDocPdf(d) {
     label("Unit price", cPrice, y + 5.2, "right"); label("Amount", cAmt, y + 5.2, "right");
     y += 8;
   }
+  // Start a new page if the next bit won't fit. The table heading is only
+  // repeated while we're still in the line items.
+  var inTable = true;
   function room(need) {
     if (y + need <= H - M - 10) return;
     pdf.addPage(); y = M;
-    tableHead();
+    if (inTable) tableHead();
   }
   tableHead();
   d.items.forEach(function (it) {
@@ -138,6 +141,7 @@ function buildDocPdf(d) {
   });
 
   /* ---- Totals ---- */
+  inTable = false;
   room(32);
   y += 7;
   var tl = R - 75;
@@ -170,10 +174,25 @@ function buildDocPdf(d) {
   /* ---- Terms ---- */
   var terms = String(d.terms || "").replace(/\{days\}/g, String(d.termsDays || s.paymentTerms)).trim();
   if (terms) {
-    var tLines = lines(terms, CW);
-    room(tLines.length * (lh(8.5) + 1) + 4);
-    font(8.5, "normal", PDF_DIM);
-    tLines.forEach(function (l) { pdf.text(l, M, y); y += lh(8.5) + 1; });
+    // Starts straight under the payment details and runs on to the next
+    // page line by line. Short numbered lines ("1. Payment Terms") are
+    // treated as headings.
+    room(14);
+    label(isInv ? "Terms" : "Terms & conditions", M, y); y += 5.5;
+    var step = lh(8.5) + 1.1;
+    terms.split("\n").forEach(function (para) {
+      para = para.trim();
+      if (!para) { y += step * 0.6; return; }
+      var heading = para.length <= 60 && /^(\d+[.)]|[A-Z][A-Za-z &/-]{2,40}:?$)/.test(para) && !/[.,;]$/.test(para);
+      font(8.5, heading ? "bold" : "normal", heading ? PDF_INK : PDF_DIM);
+      if (heading) { room(step * 3); y += 1; } // keep a heading with its first line
+      lines(para, CW).forEach(function (l) {
+        room(step);
+        font(8.5, heading ? "bold" : "normal", heading ? PDF_INK : PDF_DIM);
+        pdf.text(l, M, y); y += step;
+      });
+      if (heading) y += 0.4;
+    });
   }
 
   /* ---- Footer on every page ---- */
