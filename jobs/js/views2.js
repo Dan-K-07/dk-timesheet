@@ -120,7 +120,8 @@ function renderDocPage(id) {
   var t = docTotals(d);
 
   var actions = [];
-  actions.push(btn("Print / Save PDF", "doc-print", { id: d.id, cls: "btn-primary" }));
+  actions.push(btn("Download PDF", "doc-pdf", { id: d.id, cls: "btn-primary" }));
+  actions.push(btn("Print", "doc-print", { id: d.id }));
   if (d.status !== "void") actions.push(btn("Email…", "doc-email", { id: d.id }));
   if (draft) actions.push(btn("Mark as sent", "doc-sent", { id: d.id }));
   if (isInv && d.status === "sent") actions.push(btn("Mark as paid", "doc-paid", { id: d.id }));

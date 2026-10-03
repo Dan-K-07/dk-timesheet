@@ -90,9 +90,11 @@ function emailDoc(d) {
       (s.accountNumber ? "\nBank: " + [s.accountName, s.sortCode, s.accountNumber].filter(Boolean).join(" / ") + "\nReference: " + d.number + "\n" : "")
       : "Total: " + money(t.gross) + "\nValid until: " + fmtDate(d.due) + "\n") +
     "\nThanks,\n" + (s.yourName || s.businessName || "");
+  var got = downloadDocPdf(d);
   location.href = "mailto:" + encodeURIComponent(d.client.email || "") + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
-  toast("Save the PDF first (Print / Save PDF), then attach it to the email.");
+  if (got) toast("PDF saved to your Downloads — attach " + docFileName(d) + " to the email.");
 }
+function saveBeforePdf() { if (dataChanged()) { save(); render(); } }
 function printDoc(d) {
   var old = document.title;
   document.title = (d.kind === "invoice" ? "Invoice " : "Quote ") + d.number + (d.client.name ? " - " + d.client.name : "");
@@ -171,8 +173,17 @@ function onBoundInput(el, final) {
     if (j && tot) tot.textContent = money(jobNet(j));
   }
   updateSaveBar();
-  if (final && el.getAttribute("data-rerender")) render();
+  if (final && el.getAttribute("data-rerender")) renderAfterClick();
 }
+// Clicking a button straight after typing fires "change" mid-click. Redrawing
+// then would swap the button out and swallow the click, so wait for it.
+var pointerDown = false, renderPending = false;
+function renderAfterClick() { if (pointerDown) renderPending = true; else render(); }
+document.addEventListener("pointerdown", function () { pointerDown = true; }, true);
+document.addEventListener("pointerup", function () {
+  pointerDown = false;
+  if (renderPending) setTimeout(function () { if (renderPending) { renderPending = false; render(); } }, 0);
+}, true);
 
 /* ---------- Clicks ---------- */
 var ACTIONS = {
@@ -311,8 +322,10 @@ var ACTIONS = {
   },
 
   /* Quotes & invoices */
-  "doc-print": function (id) { printDoc(byId(state.data.invoices, id)); },
-  "doc-email": function (id) { emailDoc(byId(state.data.invoices, id)); },
+  // The PDF matches what's on screen, so any unsaved edits are saved first.
+  "doc-pdf": function (id) { saveBeforePdf(); if (downloadDocPdf(byId(state.data.invoices, id))) toast("PDF saved to your Downloads."); },
+  "doc-print": function (id) { saveBeforePdf(); printDocPdf(byId(state.data.invoices, id)); },
+  "doc-email": function (id) { saveBeforePdf(); emailDoc(byId(state.data.invoices, id)); },
   "doc-sent": function (id) { var d = byId(state.data.invoices, id); d.status = "sent"; d.sentDate = todayIso(); refreshJobStatus(jobById(d.jobId)); save(); render(); },
   "doc-paid": function (id) {
     var d = byId(state.data.invoices, id);
