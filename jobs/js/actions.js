@@ -182,6 +182,8 @@ var ACTIONS = {
     if (confirm(msg)) logout();
   },
   "theme": toggleTheme,
+  "nav-open": function () { state.navOpen = true; render(); },
+  "nav-close": function () { state.navOpen = false; render(); },
   "new-job": function (id, el) {
     var clientId = state.route.tab === "clients" && id ? id : "";
     newJob(clientId);
