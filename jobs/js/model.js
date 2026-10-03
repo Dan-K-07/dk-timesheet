@@ -79,7 +79,38 @@ function docTotals(doc) {
   return { net: net, vat: vat, gross: round2(net + vat) };
 }
 function liveInvoices() { return state.data.invoices.filter(function (i) { return i.kind === "invoice" && i.status !== "void"; }); }
-function invoicesForJob(jobId) { return state.data.invoices.filter(function (i) { return i.jobId === jobId; }); }
+// An invoice is for one job (jobId), or for several jobs in a project (jobIds).
+function invoicesForJob(jobId) {
+  return state.data.invoices.filter(function (i) { return i.jobId === jobId || (i.jobIds && i.jobIds.indexOf(jobId) !== -1); });
+}
+function docJobs(d) {
+  var ids = d.jobIds && d.jobIds.length ? d.jobIds : d.jobId ? [d.jobId] : [];
+  return ids.map(jobById).filter(Boolean);
+}
+function projectById(id) { return byId(state.data.projects, id); }
+function projectJobs(p) { return state.data.jobs.filter(function (j) { return j.projectId === p.id; }); }
+// The name used to greet the client in emails: their first contact.
+function clientContactName(c) { return (c.contacts && c.contacts[0] && c.contacts[0].name) || c.contact || ""; }
+function daysBetween(a, b) { return Math.round((new Date(b + "T12:00:00") - new Date(a + "T12:00:00")) / 86400000); }
+/* How quickly a client pays: average days from invoice date to paid. */
+function paymentScore(clientId) {
+  var paid = liveInvoices().filter(function (i) { return i.clientId === clientId && i.status === "paid" && i.paidDate && i.date; });
+  if (!paid.length) return null;
+  var avg = Math.round(paid.reduce(function (s, i) { return s + Math.max(0, daysBetween(i.date, i.paidDate)); }, 0) / paid.length);
+  var band = avg <= 7 ? ["Amazing", "amazing"] : avg <= 21 ? ["Good", "good"] : avg <= 35 ? ["Okay", "okay"] : ["Poor", "poor"];
+  return { days: avg, count: paid.length, label: band[0], cls: band[1] };
+}
+/* "Paid (26d early)", "Overdue (3d)" etc. for an invoice. */
+function invoiceStatusText(i) {
+  if (i.kind === "quote") return { draft: "Draft", sent: "Sent", accepted: "Accepted", declined: "Declined", void: "Void" }[i.status] || i.status;
+  if (i.status === "paid") {
+    if (!i.paidDate || !i.due) return "Paid";
+    var diff = daysBetween(i.paidDate, i.due);
+    return diff > 0 ? "Paid (" + diff + "d early)" : diff < 0 ? "Paid (" + -diff + "d late)" : "Paid (on time)";
+  }
+  if (isOverdue(i)) return "Overdue (" + daysBetween(i.due, todayIso()) + "d)";
+  return { draft: "Draft", sent: "Sent", void: "Void" }[i.status] || i.status;
+}
 function isOverdue(inv) { return inv.kind === "invoice" && inv.status === "sent" && inv.due && inv.due < todayIso(); }
 
 /* Things on a job not yet put on an invoice: line items without an

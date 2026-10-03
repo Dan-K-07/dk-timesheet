@@ -7,7 +7,7 @@
    to the other.
    ===================================================================== */
 
-var JOBS_VERSION = "1.5.2"; // bump this whenever you change the Jobs app
+var JOBS_VERSION = "1.6.0"; // bump this whenever you change the Jobs app
 var SUPABASE_URL = "https://axiqpqjquywvzymmzwgr.supabase.co";
 var SUPABASE_ANON_KEY = "sb_publishable_gO1jSR_OETTKmwCz-hEb3w_JUYS1tik";
 var AUTH_STORAGE_KEY = "dk_timesheet_auth_v1"; // shared with the timesheet
@@ -75,7 +75,7 @@ function defaultSettings() {
   };
 }
 function emptyData() {
-  return { clients: [], jobs: [], products: [], invoices: [], expenses: [], mileage: [], settings: defaultSettings() };
+  return { clients: [], jobs: [], projects: [], products: [], invoices: [], expenses: [], mileage: [], settings: defaultSettings() };
 }
 
 /* ============ State ============ */
@@ -86,11 +86,12 @@ var state = {
   startingSession: false, syncStatus: "off",
   // UI
   jobFilter: "active", jobSearch: "",
-  invFilter: "open",
+  invFilter: "active",
   expYear: null, mileYear: null, reportYear: null, reportQuarter: "all",
   expEditingId: null, expAdding: false, expFromJob: null,
   mileEditingId: null, mileAdding: false, mileFromJob: null,
-  clientEditingId: null, clientAdding: false,
+  clientEditingId: null, clientAdding: false, clientEditing: false,
+  projectNaming: false, projectOpen: {}, histSort: { key: "jobDate", dir: -1 },
   productEditingId: null, productAdding: false,
   receiptBusy: false,
   // Unsaved changes: edits stay on screen until you press Save.
@@ -156,8 +157,12 @@ function byId(list, id) { for (var i = 0; i < list.length; i++) if (list[i].id =
 function normaliseData(d) {
   var base = emptyData();
   d = d && typeof d === "object" ? d : {};
-  ["clients", "jobs", "products", "invoices", "expenses", "mileage"].forEach(function (k) {
+  ["clients", "jobs", "projects", "products", "invoices", "expenses", "mileage"].forEach(function (k) {
     base[k] = Array.isArray(d[k]) ? d[k] : [];
+  });
+  // Clients used to have one contact name; now they have a list of contacts.
+  base.clients.forEach(function (c) {
+    if (!Array.isArray(c.contacts)) c.contacts = c.contact ? [{ id: "k" + c.id, name: c.contact, role: "", email: "", phone: "" }] : [];
   });
   var s = defaultSettings();
   var ds = d.settings || {};

@@ -32,25 +32,140 @@ function renderClients() {
 function renderClientPage(id) {
   var c = byId(state.data.clients, id);
   if (!c) return emptyBlock("Client not found", "It may have been deleted on another device.", '<a class="btn" href="#/clients">Back to clients</a>');
-  var st = clientStats(c.id);
-  var jobs = st.jobs.slice().sort(function (a, b) { return jobStartDate(a) < jobStartDate(b) ? 1 : -1; });
-  return '<div class="page-head"><a class="back-link" href="#/clients">← Clients</a><h1 class="page-title">' + escapeHtml(c.name || "New client") + '</h1></div>' +
-    '<div class="job-layout"><div class="job-main"><div class="card job-card"><div class="form-grid">' +
-      field("Company / client name", bound("client", c.id, "name", c.name), "span-2") +
-      field("Contact name", bound("client", c.id, "contact", c.contact)) +
-      field("Phone", bound("client", c.id, "phone", c.phone, { type: "tel" })) +
-      field("Email (invoices go here)", bound("client", c.id, "email", c.email, { type: "email" }), "span-2") +
-      field("Default payment terms (days)", bound("client", c.id, "terms", c.terms, { num: true, type: "number", placeholder: String(state.data.settings.paymentTerms) })) +
-      field("Your supplier / vendor ref", bound("client", c.id, "supplierRef", c.supplierRef)) +
-      field("Address", bound("client", c.id, "address", c.address, { type: "textarea", rows: 4 }), "span-2") +
-      field("Notes", bound("client", c.id, "notes", c.notes, { type: "textarea", rows: 4 }), "span-2") +
-    '</div></div>' +
-    '<div class="section-title">Jobs</div><div class="card list-card">' + (jobs.length ? jobs.map(function (j) {
-      return '<div class="list-row link-row" data-action="open-job" data-id="' + attr(j.id) + '"><div class="lr-main"><div class="lr-title">' + escapeHtml(j.title || "Untitled job") + '</div><div class="lr-sub">' + jobDateText(j) + '</div></div><div class="lr-end"><div class="mono">' + money(jobNet(j)) + '</div>' + statusTag(j.status) + '</div></div>';
-    }).join("") : '<div class="list-empty">No jobs for this client yet.</div>') + '</div></div>' +
-    '<div class="job-side"><div class="card side-card"><div class="side-title">Invoiced to date</div><div class="side-big mono">' + money(st.billed) + '</div>' +
-      '<div class="lr-sub">' + (st.owed ? money(st.owed) + " outstanding" : "Nothing outstanding") + '</div></div>' +
-      '<div class="btn-row side-btns">' + btn("＋ New job for this client", "new-job", { id: c.id, cls: "btn-sm" }) + btn("Delete client", "client-delete", { id: c.id, cls: "btn-sm btn-danger" }) + '</div></div></div>';
+  var st = clientStats(c.id), score = paymentScore(c.id);
+  var issued = st.invoices.filter(function (i) { return i.status !== "draft"; });
+  var billed = sumGross(issued), paid = sumGross(issued.filter(function (i) { return i.status === "paid"; }));
+  var head = '<div class="page-head client-head"><a class="back-link" href="#/clients">← Clients</a>' +
+    '<div class="client-title"><div><h1 class="page-title accent-title">' + escapeHtml(c.name || "New client") + '</h1><div class="page-sub">Client details &amp; invoice history</div></div>' +
+    '<button class="btn" data-action="client-edit">' + icon(state.clientEditing ? "save" : "pencil") + ' ' + (state.clientEditing ? "Done editing" : "Edit Client") + '</button></div></div>';
+
+  var details;
+  if (state.clientEditing) {
+    var contacts = (c.contacts || []).map(function (k) {
+      return '<div class="contact-edit">' +
+        bound("client-contacts", c.id, "name", k.name, { sub: k.id, placeholder: "Name" }) +
+        bound("client-contacts", c.id, "role", k.role, { sub: k.id, placeholder: "Role, e.g. Head of Sound" }) +
+        bound("client-contacts", c.id, "email", k.email, { sub: k.id, placeholder: "Email", type: "email" }) +
+        bound("client-contacts", c.id, "phone", k.phone, { sub: k.id, placeholder: "Phone", type: "tel" }) +
+        '<button class="icon-only btn-danger" data-action="contact-del" data-id="' + attr(c.id) + '" data-sub="' + attr(k.id) + '" title="Remove contact">' + icon("bin") + '</button></div>';
+    }).join("");
+    details = '<div class="card client-card"><div class="client-cols"><div><div class="cap-title">Client details</div><div class="form-grid client-form">' +
+        field("Company / client name", bound("client", c.id, "name", c.name), "full") +
+        field("Address", bound("client", c.id, "address", c.address, { type: "textarea", rows: 4 }), "full") +
+        field("Email (invoices go here)", bound("client", c.id, "email", c.email, { type: "email" }), "span-2") +
+        field("Phone", bound("client", c.id, "phone", c.phone, { type: "tel" }), "span-2") +
+        field("Payment terms (days)", bound("client", c.id, "terms", c.terms, { num: true, type: "number", placeholder: String(state.data.settings.paymentTerms) }), "span-2") +
+        field("Your supplier / vendor ref", bound("client", c.id, "supplierRef", c.supplierRef), "span-2") +
+        field("Notes (private)", bound("client", c.id, "notes", c.notes, { type: "textarea", rows: 3 }), "full") +
+      '</div></div>' +
+      '<div><div class="cap-title">Contacts</div>' + (contacts || '<div class="lr-sub">No contacts yet.</div>') +
+        '<button class="link-add" data-action="contact-add" data-id="' + attr(c.id) + '">＋ Add contact</button>' +
+        '<div class="lr-sub contact-note">The first contact is the one greeted in invoice emails.</div></div>' +
+    '</div></div>';
+  } else {
+    var lines = function (k) { return [k.email ? '<a href="mailto:' + attr(k.email) + '">' + escapeHtml(k.email) + '</a>' : "", escapeHtml(k.phone || "")].filter(Boolean).join("<br>"); };
+    details = '<div class="card client-card"><div class="client-cols">' +
+      '<div><div class="cap-title">Client details</div><div class="client-name">' + escapeHtml(c.name || "(no name)") + '</div>' +
+        (c.address ? '<div class="pre client-addr">' + escapeHtml(c.address) + '</div>' : "") +
+        '<div class="client-facts">' +
+          (c.email ? '<div>' + icon("mail") + '<a href="mailto:' + attr(c.email) + '">' + escapeHtml(c.email) + '</a></div>' : "") +
+          (c.phone ? '<div>' + icon("phone") + escapeHtml(c.phone) + '</div>' : "") +
+          '<div>' + icon("clock") + 'Payment terms: ' + (num(c.terms) || num(state.data.settings.paymentTerms) || 30) + ' days</div>' +
+          (c.supplierRef ? '<div>' + icon("tag") + 'Supplier ref: ' + escapeHtml(c.supplierRef) + '</div>' : "") +
+        '</div>' + (c.notes ? '<div class="client-notes pre">' + escapeHtml(c.notes) + '</div>' : "") + '</div>' +
+      '<div><div class="cap-title">Contacts</div>' + ((c.contacts || []).length ? c.contacts.map(function (k) {
+        return '<div class="contact"><div><b>' + escapeHtml(k.name || "(no name)") + '</b>' + (k.role ? ' <span class="lr-sub">· ' + escapeHtml(k.role) + '</span>' : "") + '</div>' +
+          (lines(k) ? '<div class="contact-lines">' + lines(k) + '</div>' : "") + '</div>';
+      }).join("") : '<div class="lr-sub">No contacts yet — use Edit Client to add them.</div>') + '</div>' +
+    '</div></div>';
+  }
+
+  var stats = '<div class="stat-grid stat-grid-4 client-stats">' +
+    '<div class="card stat-card score ' + (score ? "sc-" + score.cls : "") + '"><div class="stat-label">Payment score</div>' +
+      (score ? '<div class="score-word">' + score.label + '</div><div class="score-days">' + score.days + 'd</div><div class="stat-sub">Avg days to pay · from invoice date · ' + score.count + ' invoice' + (score.count === 1 ? "" : "s") + '</div>'
+        : '<div class="score-word">—</div><div class="stat-sub">Shows once an invoice has been paid</div>') + '</div>' +
+    stat("Total invoiced", money(billed), issued.length + " invoice" + (issued.length === 1 ? "" : "s")) +
+    stat("Total paid", money(paid), "", "good") +
+    stat("Outstanding", money(st.owed), st.owed ? "" : "Nothing owed", st.owed ? "warn" : "muted") +
+  '</div>';
+
+  return head + details + stats + renderProjects(c) + renderClientHistory(c) +
+    '<div class="btn-row side-btns client-foot">' + btn("＋ New job for this client", "new-job", { id: c.id, cls: "btn-sm" }) + btn("Delete client", "client-delete", { id: c.id, cls: "btn-sm btn-danger" }) + '</div>';
+}
+
+/* Projects: group several of a client's jobs and invoice them together. */
+function renderProjects(c) {
+  var projects = state.data.projects.filter(function (p) { return p.clientId === c.id; });
+  var jobs = state.data.jobs.filter(function (j) { return j.clientId === c.id; })
+    .sort(function (a, b) { return (jobStartDate(b) || "") < (jobStartDate(a) || "") ? -1 : 1; });
+  var naming = state.projectNaming ? '<div class="project-new"><input class="field-input" id="projectName" data-id="' + attr(c.id) + '" placeholder="Project name, e.g. Monthly matches" autocomplete="off">' +
+    btn("Create", "project-create", { id: c.id, cls: "btn-primary" }) + '<button class="icon-only" data-action="project-cancel" title="Cancel">✕</button></div>' : "";
+  var cards = projects.map(function (p) {
+    var mine = projectJobs(p), open = !!state.projectOpen[p.id];
+    var toBill = round2(mine.reduce(function (s, j) { return s + jobUninvoiced(j).total; }, 0));
+    var body = !open ? "" : '<div class="project-body">' + (jobs.length ? jobs.map(function (j) {
+        var other = j.projectId && j.projectId !== p.id ? projectById(j.projectId) : null;
+        return '<label class="project-job"><input type="checkbox" data-project-job="' + attr(j.id) + '" data-id="' + attr(p.id) + '"' + (j.projectId === p.id ? " checked" : "") + '>' +
+          '<span class="pj-title">' + escapeHtml(j.title || "Untitled job") + '</span><span class="lr-sub">· ' + jobDateText(j) + '</span><span class="pj-ref">#' + escapeHtml(j.ref || "") + '</span>' +
+          (other ? '<span class="mini-tag">in ' + escapeHtml(other.name) + '</span>' : "") + '</label>';
+      }).join("") : '<div class="lr-sub">This client has no jobs yet.</div>') +
+      '<div class="project-actions">' + btn("Create Invoice for Project" + (toBill ? " · " + money(toBill) : ""), "project-invoice", { id: p.id, cls: "btn-good", disabled: !mine.length || toBill <= 0 }) +
+        btn("Delete", "project-delete", { id: p.id, cls: "btn-danger" }) + '</div>' +
+      (mine.length && toBill <= 0 ? '<div class="lr-sub">Everything on these jobs has been invoiced.</div>' : "") + '</div>';
+    return '<div class="project' + (open ? " open" : "") + '"><button class="project-head" data-action="project-toggle" data-id="' + attr(p.id) + '">' +
+      '<span><b>' + escapeHtml(p.name) + '</b><span class="lr-sub">' + mine.length + ' job' + (mine.length === 1 ? "" : "s") + ' assigned' + (toBill ? " · " + money(toBill) + " to invoice" : "") + '</span></span>' + icon("chevron", "chev") + '</button>' + body + '</div>';
+  }).join("");
+  return '<div class="card projects-card"><div class="cap-head"><span class="cap-title">Projects <span class="info-tip" title="Group several jobs for this client into a project, then raise one invoice covering all of them — useful for recurring work billed together, e.g. several matches invoiced once a month.">' + icon("info") + '</span></span>' +
+      (state.projectNaming ? "" : '<button class="link-add" data-action="project-new">＋ New Project</button>') + '</div>' +
+    naming + (cards || (state.projectNaming ? "" : '<div class="lr-sub">Group several jobs into a project, then raise one invoice covering all of them.</div>')) + '</div>';
+}
+
+/* Every job for the client, with its invoice (if any). Sortable. */
+function renderClientHistory(c) {
+  var rows = [];
+  state.data.jobs.filter(function (j) { return j.clientId === c.id; }).forEach(function (j) {
+    var invs = invoicesForJob(j.id).filter(function (i) { return i.kind === "invoice" && i.status !== "void"; });
+    if (!invs.length) rows.push({ job: j, inv: null });
+    invs.forEach(function (i) { rows.push({ job: j, inv: i }); });
+  });
+  var key = state.histSort.key, dir = state.histSort.dir;
+  var val = function (r) {
+    var i = r.inv;
+    switch (key) {
+      case "ref": return r.job.ref || "";
+      case "job": return (r.job.title || "").toLowerCase();
+      case "invoice": return i ? i.number : "";
+      case "invDate": return i ? i.date || "" : "";
+      case "due": return i ? i.due || "" : "";
+      case "amount": return i ? docTotals(i).gross : -1;
+      case "status": return i ? invoiceStatusText(i) : "~";
+      case "paid": return i && i.paidDate || "";
+      default: return jobStartDate(r.job) || "";
+    }
+  };
+  rows.sort(function (a, b) { var x = val(a), y = val(b); return x < y ? -dir : x > y ? dir : 0; });
+  var th = function (k, label, cls) {
+    return '<th class="sortable' + (cls ? " " + cls : "") + (key === k ? " sorted" : "") + '" data-action="hist-sort" data-id="' + k + '">' + label + ' <span class="sort-ind">' + (key === k ? (dir > 0 ? "▲" : "▼") : "⇅") + '</span></th>';
+  };
+  var body = rows.map(function (r) {
+    var j = r.job, i = r.inv;
+    var status = i ? '<span class="tag ' + (i.status === "paid" ? "ds-paid" : isOverdue(i) ? "ds-overdue" : "ds-" + i.status) + '">' + escapeHtml(invoiceStatusText(i)) + '</span>'
+      : '<span class="tag ' + (j.status === "Cancelled" ? "st-cancelled" : "ds-draft") + '">' + (j.status === "Cancelled" ? "Cancelled" : "Not invoiced") + '</span>';
+    return '<tr>' +
+      '<td><a class="ref-link" href="#/jobs/' + encodeURIComponent(j.id) + '">' + escapeHtml(j.ref || "—") + '</a></td>' +
+      '<td class="hist-job">' + escapeHtml(j.title || "Untitled job") + (j.projectId && projectById(j.projectId) ? '<div class="lr-sub">' + escapeHtml(projectById(j.projectId).name) + '</div>' : "") + '</td>' +
+      '<td class="date-cell">' + (jobStartDate(j) ? fmtDate(jobStartDate(j)) : "—") + '</td>' +
+      '<td>' + (i ? '<a class="ref-link" href="#/doc/' + encodeURIComponent(i.id) + '">' + escapeHtml(i.number) + '</a>' : "—") + '</td>' +
+      '<td class="date-cell">' + (i ? fmtDate(i.date) : "—") + '</td>' +
+      '<td class="date-cell">' + (i ? fmtDate(i.due) : "—") + '</td>' +
+      '<td class="num">' + (i ? money(docTotals(i).gross) : "—") + '</td>' +
+      '<td>' + status + '</td>' +
+      '<td class="date-cell">' + (i && i.paidDate ? fmtDate(i.paidDate) : "—") + '</td></tr>';
+  }).join("");
+  return '<div class="card log-table-wrap hist-card"><div class="cap-head"><span class="cap-title">Job &amp; invoice history</span></div>' +
+    '<div class="table-scroll"><table class="log-table hist-table"><thead><tr>' + th("ref", "Job ref") + th("job", "Job") + th("jobDate", "Job date") + th("invoice", "Invoice") +
+      th("invDate", "Inv date") + th("due", "Due date") + th("amount", "Amount", "num") + th("status", "Status") + th("paid", "Date paid") + '</tr></thead><tbody>' +
+    (body || '<tr><td colspan="9" class="list-empty">No jobs for this client yet.</td></tr>') + '</tbody></table></div></div>';
 }
 
 /* ---------- Price list ---------- */
@@ -73,6 +188,7 @@ function renderPrices() {
 
 /* ---------- Quotes & Invoices list ---------- */
 var INV_FILTERS = [
+  { key: "active", label: "Invoices", test: function (i) { return i.kind === "invoice" && i.status !== "void"; } },
   { key: "open", label: "Unpaid", test: function (i) { return i.kind === "invoice" && (i.status === "draft" || i.status === "sent"); } },
   { key: "paid", label: "Paid", test: function (i) { return i.kind === "invoice" && i.status === "paid"; } },
   { key: "quotes", label: "Quotes", test: function (i) { return i.kind === "quote" && i.status !== "void"; } },
@@ -84,30 +200,36 @@ function renderInvoices() {
   if (!all.length) return emptyBlock("No quotes or invoices yet", "Open a job and use Create invoice or Create quote — the client, charges and costs are filled in for you.", '<a class="btn btn-primary" href="#/jobs">Go to jobs</a>');
   var f = INV_FILTERS.filter(function (x) { return x.key === state.invFilter; })[0] || INV_FILTERS[0];
   var list = all.filter(f.test).sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : (a.number < b.number ? 1 : -1); });
-  var owed = sumGross(liveInvoices().filter(function (i) { return i.status === "sent"; }));
-  var overdue = sumGross(liveInvoices().filter(isOverdue));
-  var y = currentTaxYear();
-  var paidYear = sumGross(liveInvoices().filter(function (i) { return i.status === "paid" && inTaxYear(i.paidDate || i.date, y); }));
+  var settled = liveInvoices().filter(function (i) { return i.status === "paid"; });
+  var owing = liveInvoices().filter(function (i) { return i.status === "sent"; }), overdue = owing.filter(isOverdue);
+  var y = currentTaxYear(), paidYear = sumGross(settled.filter(function (i) { return inTaxYear(i.paidDate || i.date, y); }));
   var chips = '<div class="chips">' + INV_FILTERS.map(function (x) {
     return '<button class="chip' + (x.key === f.key ? " active" : "") + '" data-action="inv-filter" data-id="' + x.key + '">' + x.label + ' <span>' + all.filter(x.test).length + '</span></button>';
   }).join("") + '</div>';
   var rows = list.map(function (i) {
-    var job = jobById(i.jobId);
-    return '<tr class="link-row" data-action="open-doc" data-id="' + attr(i.id) + '">' +
-      '<td class="mono">' + escapeHtml(i.number) + '</td>' +
-      '<td class="date-cell">' + fmtDate(i.date) + '</td>' +
-      '<td><div class="lr-title">' + escapeHtml(i.client.name || "") + '</div><div class="lr-sub">' + escapeHtml(job ? job.title : (i.title || "")) + '</div></td>' +
-      '<td class="date-cell">' + (i.kind === "invoice" ? (i.status === "paid" ? "Paid " + fmtDate(i.paidDate) : "Due " + fmtDate(i.due)) : "Valid to " + fmtDate(i.due)) + '</td>' +
-      '<td>' + docStatusTag(i) + '</td>' +
-      '<td class="num">' + money(docTotals(i).gross) + '</td></tr>';
+    var jobs = docJobs(i), isInv = i.kind === "invoice";
+    var cls = i.status === "paid" || i.status === "accepted" ? "ds-paid" : isOverdue(i) ? "ds-overdue" : "ds-" + i.status;
+    var act = btn("View", "open-doc", { id: i.id, cls: "btn-sm btn-dark" });
+    if (isInv && i.status === "draft") act += btn("Mark Sent", "doc-sent", { id: i.id, cls: "btn-sm btn-amber" });
+    if (isInv && i.status === "sent") act += btn("Mark Paid", "doc-paid", { id: i.id, cls: "btn-sm btn-amber" });
+    if (isInv && i.status === "paid") act += btn("Mark Unpaid", "doc-unpaid", { id: i.id, cls: "btn-sm btn-amber" });
+    if (i.projectId && projectById(i.projectId)) act += btn("Project", "open-project-client", { id: i.projectId, cls: "btn-sm" });
+    else if (jobs.length === 1) act += btn("Job", "open-job", { id: jobs[0].id, cls: "btn-sm" });
+    return '<tr>' +
+      '<td><a class="ref-link" href="#/doc/' + encodeURIComponent(i.id) + '">' + escapeHtml(i.number) + '</a>' + (isInv ? "" : '<div class="lr-sub">Quote</div>') + '</td>' +
+      '<td><div class="inv-title">' + escapeHtml(i.title || (jobs[0] && jobs[0].title) || "—") + '</div><div class="inv-client">' + escapeHtml(i.client.name || "") + '</div>' +
+        '<div class="lr-sub">' + fmtDate(i.date) + (isInv && i.status !== "paid" && i.status !== "void" ? " · due " + fmtDate(i.due) : "") + (i.status === "paid" && i.paidDate ? " · paid " + fmtDate(i.paidDate) : "") + '</div></td>' +
+      '<td><span class="tag ' + cls + '">' + escapeHtml(invoiceStatusText(i)) + '</span></td>' +
+      '<td class="num inv-total">' + money(docTotals(i).gross) + '</td>' +
+      '<td class="inv-actions"><div class="btn-row nowrap">' + act + '</div></td></tr>';
   }).join("");
-  return '<div class="stat-grid">' +
-      stat("Outstanding", money(owed), overdue ? money(overdue) + " overdue" : "Nothing overdue", overdue ? "warn" : "") +
-      stat("Paid " + taxYearLabel(y), money(paidYear), "This tax year, incl. VAT") +
-      stat("Invoices issued", String(liveInvoices().filter(function (i) { return i.status !== "draft"; }).length), "All time") +
-    '</div>' + chips +
-    '<div class="card log-table-wrap"><table class="log-table"><thead><tr><th>Number</th><th>Date</th><th>Client / job</th><th>Due</th><th>Status</th><th class="num">Total</th></tr></thead><tbody>' +
-    (rows || '<tr><td colspan="6" class="list-empty">Nothing here.</td></tr>') + '</tbody></table></div>';
+  return '<div class="stat-grid fin-stats">' +
+      stat("Settled income", money(sumGross(settled)), money(paidYear) + " this tax year (" + taxYearLabel(y) + ")", "good") +
+      stat("Accounts receivable", money(sumGross(owing)), overdue.length ? money(sumGross(overdue)) + " overdue" : owing.length ? "Nothing overdue" : "Nothing owed", overdue.length ? "warn" : "info") +
+    '</div>' +
+    '<div class="card log-table-wrap inv-card"><div class="cap-head inv-head"><div><div class="inv-card-title">' + escapeHtml(f.key === "active" ? "Invoices" : f.label) + '</div><div class="lr-sub">' + (f.key === "active" ? "Active invoices shown by default" : list.length + " shown") + '</div></div>' + chips + '</div>' +
+    '<div class="table-scroll"><table class="log-table inv-table"><thead><tr><th>Doc ref</th><th>Project / description</th><th>Status</th><th class="num">Total</th><th class="inv-actions">Actions</th></tr></thead><tbody>' +
+    (rows || '<tr><td colspan="5" class="list-empty">Nothing here.</td></tr>') + '</tbody></table></div></div>';
 }
 function sumGross(list) { return round2(list.reduce(function (s, i) { return s + docTotals(i).gross; }, 0)); }
 
@@ -116,7 +238,7 @@ function renderDocPage(id) {
   var d = byId(state.data.invoices, id);
   if (!d) return emptyBlock("Not found", "This quote or invoice may have been deleted on another device.", '<a class="btn" href="#/invoices">Back</a>');
   var isInv = d.kind === "invoice", draft = d.status === "draft";
-  var job = jobById(d.jobId);
+  var job = jobById(d.jobId), proj = d.projectId ? projectById(d.projectId) : null;
   var t = docTotals(d);
 
   var actions = [];
@@ -155,7 +277,8 @@ function renderDocPage(id) {
       '<div class="btn-row items-actions">' + btn("＋ Add line", "doc-item-add", { id: d.id, cls: "btn-sm" }) + '</div></div>';
   }
 
-  return '<div class="page-head no-print"><a class="back-link" href="' + (job ? "#/jobs/" + encodeURIComponent(job.id) : "#/invoices") + '">← ' + (job ? escapeHtml(job.title || "Job") : "Quotes & Invoices") + '</a>' +
+  var back = job ? ["#/jobs/" + encodeURIComponent(job.id), job.title || "Job"] : proj ? ["#/clients/" + encodeURIComponent(proj.clientId), proj.name] : ["#/invoices", "Quotes & Invoices"];
+  return '<div class="page-head no-print"><a class="back-link" href="' + back[0] + '">← ' + escapeHtml(back[1]) + '</a>' +
       '<h1 class="page-title">' + (isInv ? "Invoice " : "Quote ") + escapeHtml(d.number) + '</h1>' + docStatusTag(d) +
       (d.status === "paid" ? '<span class="lr-sub">Paid ' + fmtDate(d.paidDate) + '</span>' : "") + '</div>' +
     '<div class="btn-row doc-actions no-print">' + actions.join("") + '</div>' +

@@ -11,7 +11,7 @@ function newJob(clientId) {
   var j = {
     id: uid("j"), ref: nextJobRef(), title: "", clientId: clientId || "", venue: "", po: "",
     status: "Confirmed", terms: "", summary: "", notes: "",
-    dates: [{ id: uid("d"), start: todayIso(), end: "", startTime: "", endTime: "", label: "" }],
+    dates: [newDateEntry(todayIso())],
     items: [], todos: [], created: new Date().toISOString()
   };
   // Start with your first day rate on the price list, if you have one.
@@ -22,9 +22,17 @@ function newJob(clientId) {
   goNow("jobs", j.id);
   setTimeout(function () { var el = document.querySelector('[data-bind="job"][data-field="title"]'); if (el) el.focus(); }, 30);
 }
+// A calendar entry on a job: dates, and times unless it's all day.
+function newDateEntry(start, like) {
+  var allDay = like ? !!like.allDay : !!state.data.settings.defaultAllDay;
+  return { id: uid("d"), start: start, end: start, allDay: allDay,
+    startTime: like ? like.startTime || "09:00" : "09:00", endTime: like ? like.endTime || "17:30" : "17:30", label: "" };
+}
 function newClient() {
   var c = { id: uid("c"), name: "", contact: "", email: "", phone: "", address: "", terms: "", notes: "", supplierRef: "" };
+  c.contacts = [];
   state.data.clients.push(c);
+  state.pendingClientEdit = true;
   startNewRecord("clients", c.id);
   goNow("clients", c.id);
   setTimeout(function () { var el = document.querySelector('[data-bind="client"][data-field="name"]'); if (el) el.focus(); }, 30);
@@ -38,38 +46,58 @@ function addProduct(p) {
    can't be billed twice. Quotes take all the job's charges. */
 function createDocFromJob(jobId, kind) {
   var j = jobById(jobId); if (!j) return;
-  var client = byId(state.data.clients, j.clientId);
-  if (!client) { toast("Choose a client for this job first."); return; }
-  var s = state.data.settings;
-  var terms = num(j.terms) || num(client.terms) || num(s.paymentTerms) || 30;
+  if (!byId(state.data.clients, j.clientId)) { toast("Choose a client for this job first."); return; }
+  createDoc([j], kind, null);
+}
+/* One invoice covering every job ticked in a project. Each job's lines
+   are listed under its name. */
+function createDocFromProject(projectId) {
+  var p = projectById(projectId); if (!p) return;
+  var jobs = projectJobs(p).filter(function (j) { return jobUninvoiced(j).total > 0 || jobUninvoiced(j).items.length; })
+    .sort(function (a, b) { return jobStartDate(a) < jobStartDate(b) ? -1 : 1; });
+  if (!jobs.length) { toast("Nothing left to invoice on this project's jobs."); return; }
+  createDoc(jobs, "invoice", p);
+}
+function createDoc(jobs, kind, project) {
+  var j = jobs[0], client = byId(state.data.clients, project ? project.clientId : j.clientId);
+  if (!client) { toast("Choose a client first."); return; }
+  var s = state.data.settings, multi = jobs.length > 1 || !!project;
+  var terms = (!multi && num(j.terms)) || num(client.terms) || num(s.paymentTerms) || 30;
   var date = todayIso();
+  var starts = jobs.map(jobStartDate).filter(Boolean).sort(), ends = jobs.map(jobEndDate).filter(Boolean).sort();
+  var span = !starts.length ? "" : starts[0] === ends[ends.length - 1] ? fmtDate(starts[0]) : fmtDate(starts[0]) + " → " + fmtDate(ends[ends.length - 1]);
   var d = {
     id: uid("v"), kind: kind, number: nextDocNumber(kind), status: "draft",
-    jobId: j.id, clientId: client.id,
-    client: { name: client.name, contact: client.contact, address: client.address, email: client.email, supplierRef: client.supplierRef },
-    title: j.title, venue: j.venue, jobDates: jobDateText(j) === "No date" ? "" : jobDateText(j),
-    po: j.po, summary: j.summary, date: date,
+    jobId: multi ? "" : j.id, clientId: client.id,
+    client: { name: client.name, contact: clientContactName(client), address: client.address, email: client.email, supplierRef: client.supplierRef },
+    title: project ? project.name : j.title, venue: multi ? "" : j.venue,
+    jobDates: multi ? span : (jobDateText(j) === "No date" ? "" : jobDateText(j)),
+    po: multi ? "" : j.po, summary: multi ? "" : j.summary, date: date,
     due: addDays(date, kind === "invoice" ? terms : (num(s.quoteValidDays) || 30)),
     termsDays: terms, terms: kind === "invoice" ? s.termsText : "", vatRate: vatOn() ? num(s.vatRate) : 0, items: []
   };
-  if (kind === "quote") {
-    d.items = (j.items || []).map(function (it) { return { id: uid("i"), desc: it.desc, qty: num(it.qty), price: num(it.price) }; });
-  } else {
-    var un = jobUninvoiced(j);
-    un.items.forEach(function (it) { d.items.push({ id: uid("i"), desc: it.desc, qty: num(it.qty), price: num(it.price), src: { type: "item", id: it.id } }); it.invoiceId = d.id; });
+  if (multi) { d.jobIds = jobs.map(function (x) { return x.id; }); if (project) d.projectId = project.id; }
+  jobs.forEach(function (job) {
+    var pre = multi ? (job.title || "Job") + (jobStartDate(job) ? " (" + fmtDate(jobStartDate(job)) + ")" : "") + ": " : "";
+    if (kind === "quote") {
+      (job.items || []).forEach(function (it) { d.items.push({ id: uid("i"), desc: pre + it.desc, qty: num(it.qty), price: num(it.price) }); });
+      return;
+    }
+    var un = jobUninvoiced(job);
+    un.items.forEach(function (it) { d.items.push({ id: uid("i"), desc: pre + it.desc, qty: num(it.qty), price: num(it.price), src: { type: "item", id: it.id } }); it.invoiceId = d.id; });
     un.expenses.forEach(function (e) {
-      d.items.push({ id: uid("i"), desc: "Expense: " + [e.merchant, e.desc].filter(Boolean).join(" – ") + " (" + fmtDate(e.date) + ")", qty: 1, price: expenseCost(e), src: { type: "expense", id: e.id } });
+      d.items.push({ id: uid("i"), desc: pre + "Expense: " + [e.merchant, e.desc].filter(Boolean).join(" – ") + " (" + fmtDate(e.date) + ")", qty: 1, price: expenseCost(e), src: { type: "expense", id: e.id } });
       e.invoiceId = d.id;
     });
     un.mileage.forEach(function (m) {
-      d.items.push({ id: uid("i"), desc: "Mileage: " + [m.from, m.to].filter(Boolean).join(" → ") + (m.trip === "return" ? " (return)" : "") + " " + fmtDate(m.date), qty: tripMiles(m), price: num(m.billRate), src: { type: "mileage", id: m.id } });
+      d.items.push({ id: uid("i"), desc: pre + "Mileage: " + [m.from, m.to].filter(Boolean).join(" → ") + (m.trip === "return" ? " (return)" : "") + " " + fmtDate(m.date), qty: tripMiles(m), price: num(m.billRate), src: { type: "mileage", id: m.id } });
       m.invoiceId = d.id;
     });
-    if (!d.items.length) d.items.push({ id: uid("i"), desc: j.title || "Services", qty: 1, price: 0 });
-  }
+  });
+  if (!d.items.length) d.items.push({ id: uid("i"), desc: d.title || "Services", qty: 1, price: 0 });
   state.data.invoices.push(d);
   save();
-  go("doc", d.id);
+  goNow("doc", d.id);
 }
 // Undo the "already invoiced" marks when an invoice is deleted or voided.
 function releaseDocSources(d) {
@@ -153,9 +181,10 @@ function findBoundTarget(el) {
   if (kind === "client") return byId(d.clients, id);
   if (kind === "product") return byId(d.products, id);
   if (kind === "doc") return byId(d.invoices, id);
-  var parent = kind.indexOf("doc-") === 0 ? byId(d.invoices, id) : jobById(id);
+  if (kind === "project") return projectById(id);
+  var parent = kind.indexOf("doc-") === 0 ? byId(d.invoices, id) : kind.indexOf("client-") === 0 ? byId(d.clients, id) : jobById(id);
   if (!parent) return null;
-  var listName = { "job-items": "items", "job-dates": "dates", "job-todos": "todos", "doc-items": "items" }[kind];
+  var listName = { "job-items": "items", "job-dates": "dates", "job-todos": "todos", "doc-items": "items", "client-contacts": "contacts" }[kind];
   return byId(parent[listName] || [], sub);
 }
 function readBoundValue(el) {
@@ -166,9 +195,16 @@ function readBoundValue(el) {
 function onBoundInput(el, final) {
   var target = findBoundTarget(el);
   if (!target) return;
-  var f = el.getAttribute("data-field");
+  var f = el.getAttribute("data-field"), before = target[f];
   target[f] = readBoundValue(el);
-  if (f === "start" && el.getAttribute("data-bind") === "job-dates" && target.end && target.end < target.start) target.end = "";
+  // Moving a start date takes the end date with it (unless it's a longer run that still fits).
+  if (f === "start" && el.getAttribute("data-bind") === "job-dates" && (!target.end || target.end < target.start || target.end === before)) {
+    target.end = target.start;
+    var endEl = document.querySelector('[data-bind="job-dates"][data-sub="' + target.id + '"][data-field="end"]'); if (endEl) endEl.value = target.end;
+  }
+  if (f === "clientId" && el.getAttribute("data-bind") === "job" && target.projectId) {
+    var pr = projectById(target.projectId); if (!pr || pr.clientId !== target.clientId) delete target.projectId;
+  }
   // Keep totals on the job page up to date without redrawing as you type.
   if (el.getAttribute("data-bind") === "job-items") {
     var cell = document.querySelector('[data-line-total="' + target.id + '"]');
@@ -246,9 +282,47 @@ var ACTIONS = {
   /* Job page */
   "job-date-add": function (id) {
     var j = jobById(id); var last = (j.dates || [])[j.dates.length - 1];
-    j.dates.push({ id: uid("d"), start: last ? addDays(last.end || last.start || todayIso(), 1) : todayIso(), end: "", startTime: "", endTime: "", label: "" });
+    j.dates.push(newDateEntry(last ? addDays(last.end || last.start || todayIso(), 1) : todayIso(), last));
     render();
   },
+  // "Make All Day your default for new jobs?"
+  "allday-default": function (id) { var s = state.data.settings; s.defaultAllDay = id === "yes"; s.allDayAsked = true; render(); toast(id === "yes" ? "New jobs will start as All Day — saved when you press Save." : "OK, new jobs keep times."); },
+
+  /* Client page */
+  "client-edit": function () { state.clientEditing = !state.clientEditing; render(); },
+  "contact-add": function (id) {
+    var c = byId(state.data.clients, id); c.contacts = c.contacts || [];
+    c.contacts.push({ id: uid("k"), name: "", role: "", email: "", phone: "" }); render();
+    var inputs = document.querySelectorAll('[data-bind="client-contacts"][data-field="name"]'); if (inputs.length) inputs[inputs.length - 1].focus();
+  },
+  "contact-del": function (id, el) { var c = byId(state.data.clients, id); c.contacts = c.contacts.filter(function (k) { return k.id !== el.getAttribute("data-sub"); }); render(); },
+  "hist-sort": function (id) { var h = state.histSort; h.dir = h.key === id ? -h.dir : (id === "job" || id === "ref" ? 1 : -1); h.key = id; render(); },
+
+  /* Projects (on the client page) */
+  "project-new": function () { state.projectNaming = true; render(); var el = document.getElementById("projectName"); if (el) el.focus(); },
+  "project-cancel": function () { state.projectNaming = false; render(); },
+  "project-create": function (id) {
+    var el = document.getElementById("projectName"), name = el ? el.value.trim() : "";
+    if (!name) { toast("Give the project a name."); if (el) el.focus(); return; }
+    var p = { id: uid("p"), clientId: id, name: name, created: new Date().toISOString() };
+    state.data.projects.push(p);
+    state.projectNaming = false; state.projectOpen[p.id] = true; render();
+    toast("Project added — tick its jobs, then press Save.");
+  },
+  "project-toggle": function (id) { state.projectOpen[id] = !state.projectOpen[id]; render(); },
+  "project-delete": function (id) {
+    var p = projectById(id);
+    showModal({ icon: "warn", title: "Delete " + (p.name || "this project") + "?", text: "Its jobs and invoices are kept — they just won't be grouped any more.",
+      buttons: [
+        { label: "Delete Project", cls: "modal-danger", run: function () {
+          state.data.jobs.forEach(function (j) { if (j.projectId === id) delete j.projectId; });
+          state.data.projects = state.data.projects.filter(function (x) { return x.id !== id; }); render();
+        } },
+        { label: "Cancel", cls: "modal-neutral" }
+      ] });
+  },
+  "project-invoice": function (id) { createDocFromProject(id); },
+  "open-project-client": function (id) { var p = projectById(id); if (p) go("clients", p.clientId); },
   "job-date-del": function (id, el) { var j = jobById(id); j.dates = j.dates.filter(function (d) { return d.id !== el.getAttribute("data-sub"); }); render(); },
   "job-item-add": function (id) {
     var j = jobById(id); j.items.push({ id: uid("i"), desc: "", qty: 1, price: 0 }); render();
@@ -277,7 +351,11 @@ var ACTIONS = {
     var docs = invoicesForJob(id).filter(function (d) { return d.status !== "draft" && d.status !== "void"; });
     if (docs.length) { alert("This job has issued quotes or invoices (" + docs.map(function (d) { return d.number; }).join(", ") + "). Set its status to Cancelled instead, so your records stay complete."); return; }
     if (!confirm("Delete “" + (j.title || "this job") + "”? Linked expenses and mileage are kept but unlinked.")) return;
-    state.data.invoices = state.data.invoices.filter(function (d) { return d.jobId !== id; });
+    state.data.invoices = state.data.invoices.filter(function (d) {
+      if (d.jobId === id) { releaseDocSources(d); return false; }
+      if (d.jobIds) d.jobIds = d.jobIds.filter(function (x) { return x !== id; });
+      return true;
+    });
     state.data.expenses.forEach(function (e) { if (e.jobId === id) e.jobId = ""; });
     state.data.mileage.forEach(function (m) { if (m.jobId === id) m.jobId = ""; });
     state.data.jobs = state.data.jobs.filter(function (x) { return x.id !== id; });
@@ -298,6 +376,7 @@ var ACTIONS = {
         { label: "Add client", cls: "modal-primary", run: function () {
           if (!g("ncName")) { toast("Add the client's name."); document.getElementById("ncName").focus(); return false; }
           var c = { id: uid("c"), name: g("ncName"), contact: g("ncContact"), email: g("ncEmail"), phone: g("ncPhone"), address: "", terms: "", notes: "", supplierRef: "" };
+          c.contacts = g("ncContact") ? [{ id: uid("k"), name: g("ncContact"), role: "", email: g("ncEmail"), phone: g("ncPhone") }] : [];
           state.data.clients.push(c);
           var j = jobById(id); if (j) j.clientId = c.id;
           render();
@@ -330,7 +409,7 @@ var ACTIONS = {
   "doc-pdf": function (id) { saveBeforePdf(); if (downloadDocPdf(byId(state.data.invoices, id))) toast("PDF saved to your Downloads."); },
   "doc-print": function (id) { saveBeforePdf(); printDocPdf(byId(state.data.invoices, id)); },
   "doc-email": function (id) { saveBeforePdf(); emailDoc(byId(state.data.invoices, id)); },
-  "doc-sent": function (id) { var d = byId(state.data.invoices, id); d.status = "sent"; d.sentDate = todayIso(); refreshJobStatus(jobById(d.jobId)); save(); render(); },
+  "doc-sent": function (id) { var d = byId(state.data.invoices, id); d.status = "sent"; d.sentDate = todayIso(); docJobs(d).forEach(refreshJobStatus); save(); render(); },
   "doc-paid": function (id) {
     var d = byId(state.data.invoices, id);
     showModal({
@@ -341,17 +420,17 @@ var ACTIONS = {
         { label: "Mark as paid", cls: "modal-primary", run: function () {
           var iso = parseUkDate(document.getElementById("paidDate").value);
           if (!iso) { toast("Enter the date as DD/MM/YYYY, e.g. " + ukDate(todayIso()) + "."); document.getElementById("paidDate").focus(); return false; }
-          d.status = "paid"; d.paidDate = iso; refreshJobStatus(jobById(d.jobId)); save(); render(); toast("Marked as paid on " + fmtDate(iso) + ".");
+          d.status = "paid"; d.paidDate = iso; docJobs(d).forEach(refreshJobStatus); save(); render(); toast("Marked as paid on " + fmtDate(iso) + ".");
         } },
         { label: "Cancel", cls: "modal-neutral" }
       ]
     });
   },
-  "doc-unpaid": function (id) { var d = byId(state.data.invoices, id); d.status = "sent"; delete d.paidDate; refreshJobStatus(jobById(d.jobId)); save(); render(); },
+  "doc-unpaid": function (id) { var d = byId(state.data.invoices, id); d.status = "sent"; delete d.paidDate; docJobs(d).forEach(refreshJobStatus); save(); render(); },
   "doc-accept": function (id) {
     var d = byId(state.data.invoices, id); d.status = "accepted";
-    var j = jobById(d.jobId); if (j && (j.status === "Potential" || j.status === "Pencilled")) j.status = "Confirmed";
-    save(); render(); toast("Quote accepted" + (j ? " — job marked Confirmed." : "."));
+    var js = docJobs(d); js.forEach(function (j) { if (j.status === "Potential" || j.status === "Pencilled") j.status = "Confirmed"; });
+    save(); render(); toast("Quote accepted" + (js.length ? " — job marked Confirmed." : "."));
   },
   "doc-decline": function (id) { var d = byId(state.data.invoices, id); d.status = "declined"; save(); render(); },
   "doc-convert": function (id) {
@@ -375,7 +454,7 @@ var ACTIONS = {
     var d = byId(state.data.invoices, id);
     if (!confirm("Void " + d.number + "? It stays on record but no longer counts, and its charges become available to invoice again.")) return;
     d.status = "void"; releaseDocSources(d);
-    var j = jobById(d.jobId); if (j && j.status === "Awaiting Payment") j.status = "Confirmed";
+    docJobs(d).forEach(function (j) { if (j.status === "Awaiting Payment") j.status = "Confirmed"; });
     save(); render();
   },
   "doc-delete": function (id) {
@@ -595,6 +674,11 @@ document.addEventListener("change", function (ev) {
     if (jj && dt && jobStartDate(jj)) dt.value = jobStartDate(jj);
     updateMileagePreview();
   }
+  if (el.hasAttribute("data-project-job")) {
+    var pj = jobById(el.getAttribute("data-project-job"));
+    if (pj) { if (el.checked) pj.projectId = el.getAttribute("data-id"); else if (pj.projectId === el.getAttribute("data-id")) delete pj.projectId; }
+    render(); return;
+  }
   if (el.id === "expYearSel") { state.expYear = parseInt(el.value, 10); render(); }
   if (el.id === "mileYearSel") { state.mileYear = parseInt(el.value, 10); render(); }
   if (el.id === "reportYearSel") { state.reportYear = parseInt(el.value, 10); render(); }
@@ -608,6 +692,7 @@ document.addEventListener("submit", function (ev) {
 });
 document.addEventListener("keydown", function (ev) {
   if (modalOpen()) { if (ev.key === "Escape") closeModal(); return; }
+  if (ev.target.id === "projectName" && ev.key === "Enter") { ev.preventDefault(); ACTIONS["project-create"](ev.target.getAttribute("data-id")); return; }
   if ((ev.ctrlKey || ev.metaKey) && ev.key === "s" && state.authed) {
     ev.preventDefault();
     if (hasChanges()) { if (document.activeElement) document.activeElement.blur(); saveAll().then(function (ok) { if (ok) render(); }); }
