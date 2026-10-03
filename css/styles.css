@@ -109,6 +109,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   border-radius: var(--radius-tag); padding: 6px 10px; font-size: 13px;
 }
 .theme-toggle:hover { color: var(--ink); border-color: var(--ink-dim); }
+/* Button that switches between DK Timesheet and DK Jobs */
+.app-switch { text-decoration: none; border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.app-switch:hover { background: var(--accent); color: var(--accent-ink); }
 
 .header-actions { display: flex; gap: 8px; align-items: center; }
 .app-version { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-dim); }
