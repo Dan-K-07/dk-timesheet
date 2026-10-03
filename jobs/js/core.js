@@ -7,7 +7,7 @@
    to the other.
    ===================================================================== */
 
-var JOBS_VERSION = "1.5.1"; // bump this whenever you change the Jobs app
+var JOBS_VERSION = "1.5.2"; // bump this whenever you change the Jobs app
 var SUPABASE_URL = "https://axiqpqjquywvzymmzwgr.supabase.co";
 var SUPABASE_ANON_KEY = "sb_publishable_gO1jSR_OETTKmwCz-hEb3w_JUYS1tik";
 var AUTH_STORAGE_KEY = "dk_timesheet_auth_v1"; // shared with the timesheet
@@ -123,6 +123,18 @@ function fmtDate(iso) {
   var p = iso.split("-");
   if (p.length < 3) return iso;
   return parseInt(p[2], 10) + " " + SHORT_MONTHS[parseInt(p[1], 10) - 1] + " " + p[0];
+}
+// UK dates: 2026-10-03 <-> 03/10/2026. parseUkDate accepts / - . or spaces
+// between the parts, a 2-digit year, or 8 digits in a row (03102026).
+function ukDate(iso) { var p = String(iso || "").split("-"); return p.length === 3 ? p[2] + "/" + p[1] + "/" + p[0] : ""; }
+function parseUkDate(text) {
+  var t = String(text || "").trim(), m = t.match(/^(\d{1,2})[\/\-. ]+(\d{1,2})[\/\-. ]+(\d{2}|\d{4})$/) || t.match(/^(\d{2})(\d{2})(\d{4})$/);
+  if (!m) return null;
+  var dd = parseInt(m[1], 10), mm = parseInt(m[2], 10), yy = parseInt(m[3], 10);
+  if (m[3].length === 2) yy += 2000;
+  var dt = new Date(yy, mm - 1, dd);
+  if (dt.getFullYear() !== yy || dt.getMonth() !== mm - 1 || dt.getDate() !== dd) return null; // e.g. 31/02
+  return yy + "-" + pad2(mm) + "-" + pad2(dd);
 }
 function escapeHtml(s) {
   if (s === null || s === undefined) return "";

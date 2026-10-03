@@ -135,6 +135,9 @@ function showModal(opts) {
       Promise.resolve(b.run ? b.run() : true).then(function (ok) { busy = false; if (ok !== false) closeModal(); });
     });
   });
+  host.querySelectorAll("input").forEach(function (inp) {
+    inp.addEventListener("keydown", function (ev) { if (ev.key === "Enter") { ev.preventDefault(); host.querySelector("[data-modal-btn]").click(); } });
+  });
   host.querySelector(".modal-scrim").addEventListener("click", function (ev) { if (ev.target === ev.currentTarget) closeModal(); });
   var first = host.querySelector(opts.focus || ".modal-btn"); if (first) first.focus();
 }

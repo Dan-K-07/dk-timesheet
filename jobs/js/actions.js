@@ -333,10 +333,19 @@ var ACTIONS = {
   "doc-sent": function (id) { var d = byId(state.data.invoices, id); d.status = "sent"; d.sentDate = todayIso(); refreshJobStatus(jobById(d.jobId)); save(); render(); },
   "doc-paid": function (id) {
     var d = byId(state.data.invoices, id);
-    var when = prompt("Date paid (YYYY-MM-DD)", todayIso());
-    if (when === null) return;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(when.trim())) { toast("Use the format YYYY-MM-DD."); return; }
-    d.status = "paid"; d.paidDate = when.trim(); refreshJobStatus(jobById(d.jobId)); save(); render(); toast("Marked as paid.");
+    showModal({
+      icon: "pound", title: "Mark " + d.number + " as paid", text: "When was the money paid in?",
+      body: '<div class="modal-form">' + field("Date paid (DD/MM/YYYY)", '<input class="field-input" id="paidDate" inputmode="numeric" autocomplete="off" placeholder="DD/MM/YYYY" value="' + ukDate(todayIso()) + '">') + '</div>',
+      focus: "#paidDate",
+      buttons: [
+        { label: "Mark as paid", cls: "modal-primary", run: function () {
+          var iso = parseUkDate(document.getElementById("paidDate").value);
+          if (!iso) { toast("Enter the date as DD/MM/YYYY, e.g. " + ukDate(todayIso()) + "."); document.getElementById("paidDate").focus(); return false; }
+          d.status = "paid"; d.paidDate = iso; refreshJobStatus(jobById(d.jobId)); save(); render(); toast("Marked as paid on " + fmtDate(iso) + ".");
+        } },
+        { label: "Cancel", cls: "modal-neutral" }
+      ]
+    });
   },
   "doc-unpaid": function (id) { var d = byId(state.data.invoices, id); d.status = "sent"; delete d.paidDate; refreshJobStatus(jobById(d.jobId)); save(); render(); },
   "doc-accept": function (id) {
