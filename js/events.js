@@ -36,9 +36,11 @@ function attachEvents() {
     if (confirm(msg)) logout();
   });
 
-  document.querySelectorAll(".tab").forEach(function (btn) {
-    btn.addEventListener("click", function () { state.tab = btn.getAttribute("data-tab"); render(); });
+  document.querySelectorAll("[data-tab]").forEach(function (btn) {
+    btn.addEventListener("click", function () { state.tab = btn.getAttribute("data-tab"); state.navOpen = false; render(); window.scrollTo(0, 0); });
   });
+  bindIf("navOpenBtn", "click", function () { state.navOpen = true; render(); });
+  bindIf("navScrim", "click", function () { state.navOpen = false; render(); });
   attachSettingsEvents();
   attachExpenseEvents();
 

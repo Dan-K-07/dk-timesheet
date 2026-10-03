@@ -5,16 +5,39 @@
    ===================================================================== */
 
 var TABS = [
-  { key: "home", label: "Home" },
-  { key: "jobs", label: "Jobs" },
-  { key: "clients", label: "Clients" },
-  { key: "invoices", label: "Quotes & Invoices" },
-  { key: "expenses", label: "Expenses" },
-  { key: "mileage", label: "Mileage" },
-  { key: "reports", label: "Reports" },
-  { key: "prices", label: "Price List" },
-  { key: "settings", label: "Settings" }
+  { key: "home", label: "Home", group: "Work", icon: "home" },
+  { key: "jobs", label: "Jobs", group: "Work", icon: "briefcase" },
+  { key: "clients", label: "Clients", group: "Work", icon: "users" },
+  { key: "invoices", label: "Quotes & Invoices", group: "Money", icon: "file" },
+  { key: "expenses", label: "Expenses", group: "Money", icon: "receipt" },
+  { key: "mileage", label: "Mileage", group: "Money", icon: "car" },
+  { key: "reports", label: "Reports", group: "Money", icon: "chart" },
+  { key: "prices", label: "Price List", group: "Setup", icon: "tag" },
+  { key: "settings", label: "Settings", group: "Setup", icon: "gear" }
 ];
+
+/* Simple line icons (24x24, drawn with the current text colour). */
+var ICONS = {
+  home: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
+  briefcase: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.3-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.6c2.6.2 4.4 1.9 5 4.9"/>',
+  file: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h6"/>',
+  receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/>',
+  car: '<path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3z"/><circle cx="7.5" cy="13" r="1"/><circle cx="16.5" cy="13" r="1"/>',
+  chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  swap: '<path d="M7 7h13l-4-4M17 17H4l4 4"/>',
+  moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  logout: '<path d="M14 4h5v16h-5"/><path d="M10 8l-4 4 4 4M6 12h10"/>',
+  menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+  pound: '<path d="M16 6.5A4 4 0 0 0 9 8.5V18M6 18h11M6 12.5h7"/>'
+};
+function icon(name, cls) {
+  return '<svg class="ico' + (cls ? " " + cls : "") + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || "") + '</svg>';
+}
 
 /* ---------- Routing (#/jobs/J0001 style links so Back works) ---------- */
 function readRoute() {
@@ -31,6 +54,7 @@ function go(tab, id) {
 }
 window.addEventListener("hashchange", function () {
   state.route = readRoute();
+  state.navOpen = false;
   state.expAdding = state.mileAdding = state.clientAdding = state.productAdding = false;
   state.expEditingId = state.mileEditingId = state.clientEditingId = state.productEditingId = null;
   var pending = state.pendingForm; state.pendingForm = null;
@@ -125,9 +149,16 @@ function render() {
     case "settings": body = renderSettings(); break;
     default: body = renderHome();
   }
-  app.innerHTML = renderTopbar() + renderTabs() + body;
-  var tabs = document.querySelector(".tabs"), active = tabs && tabs.querySelector(".tab.active");
-  if (active) { var over = active.offsetLeft + active.offsetWidth - tabs.clientWidth; if (over > 0) tabs.scrollLeft = over + 24; }
+  var SUBS = { jobs: "Every booking, from pencil to paid", clients: "Who you work for", invoices: "Quotes, invoices and what you're owed",
+    expenses: "Business costs and receipts", mileage: "Business journeys at HMRC rates", reports: "Figures for your tax return and MTD updates",
+    prices: "Your rates, ready to drop onto a job", settings: "Your details, invoices, tax and mileage" };
+  if (!r.id && SUBS[r.tab]) {
+    var t = TABS.filter(function (x) { return x.key === r.tab; })[0];
+    body = pageHeader(t.label, SUBS[r.tab]) + body;
+  }
+  app.innerHTML = '<div class="shell' + (state.navOpen ? " nav-open" : "") + '">' + renderSidebar() +
+    '<div class="nav-scrim" data-action="nav-close"></div>' +
+    '<main class="main">' + renderMobileBar() + '<div class="main-inner">' + body + '</div></main></div>';
 }
 
 function renderGate() {
@@ -146,25 +177,38 @@ function renderGate() {
   return '<div class="gate-wrap"><div class="card gate-card"><div class="gate-mark">DK <span>Jobs</span></div>' + body + '</div></div>';
 }
 
-function renderTopbar() {
-  var isDark = document.documentElement.getAttribute("data-theme") === "dark" ||
+function isDarkMode() {
+  return document.documentElement.getAttribute("data-theme") === "dark" ||
     (!document.documentElement.hasAttribute("data-theme") && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  return '<div class="topbar">' +
-      '<div class="brand"><span class="mark">DK <span>Jobs</span></span></div>' +
-      '<div class="header-actions">' +
-        '<span class="app-version" title="App version">v' + JOBS_VERSION + '</span>' +
-        '<span class="sync-btn" id="syncStatusPill" title="' + attr(state.user ? "Signed in as " + state.user.email : "Not connected") + '"><span class="sync-dot ' + state.syncStatus + '"></span><span class="sync-label">' + syncStatusLabel() + '</span></span>' +
-        '<button class="btn btn-sm" data-action="logout">Log out</button>' +
-        '<button class="theme-toggle" data-action="theme">' + (isDark ? "Light mode" : "Dark mode") + '</button>' +
-        '<a class="btn btn-sm app-switch" href="../" title="Go to DK Timesheet">⇄ Timesheet</a>' +
-      '</div>' +
-    '</div>';
 }
-function renderTabs() {
-  var cur = state.route.tab === "doc" ? "invoices" : state.route.tab;
-  return '<div class="tabs">' + TABS.map(function (t) {
-    return '<a class="tab' + (cur === t.key ? " active" : "") + '" href="#/' + t.key + '">' + t.label + '</a>';
-  }).join("") + '</div>';
+function renderSidebar() {
+  var cur = state.route.tab === "doc" ? "invoices" : state.route.tab, group = "";
+  var links = TABS.map(function (t) {
+    var head = t.group !== group ? '<div class="nav-group">' + t.group + '</div>' : "";
+    group = t.group;
+    return head + '<a class="nav-link' + (cur === t.key ? " active" : "") + '" href="#/' + t.key + '">' + icon(t.icon) + '<span>' + t.label + '</span></a>';
+  }).join("");
+  return '<aside class="sidebar">' +
+      '<a class="side-brand" href="#/home"><span class="brand-badge">DK</span><span class="brand-text">DK Jobs<small>v' + JOBS_VERSION + '</small></span></a>' +
+      '<nav class="side-nav">' + links + '</nav>' +
+      '<div class="side-foot">' +
+        '<a class="switch-app" href="../" title="Go to DK Timesheet">' + icon("swap") + '<span>Open Timesheet</span></a>' +
+        '<div class="foot-row">' +
+          '<span class="sync-pill" id="syncStatusPill" title="' + attr(state.user ? "Signed in as " + state.user.email : "Not connected") + '"><span class="sync-dot ' + state.syncStatus + '"></span><span class="sync-label">' + syncStatusLabel() + '</span></span>' +
+          '<button class="icon-only" data-action="theme" title="' + (isDarkMode() ? "Light mode" : "Dark mode") + '">' + icon(isDarkMode() ? "sun" : "moon") + '</button>' +
+          '<button class="icon-only" data-action="logout" title="Log out">' + icon("logout") + '</button>' +
+        '</div>' +
+      '</div>' +
+    '</aside>';
+}
+function renderMobileBar() {
+  return '<div class="mobile-bar"><button class="icon-only" data-action="nav-open" aria-label="Menu">' + icon("menu") + '</button>' +
+    '<span class="brand-badge sm">DK</span><span class="mobile-title">' + escapeHtml((TABS.filter(function (t) { return t.key === (state.route.tab === "doc" ? "invoices" : state.route.tab); })[0] || TABS[0]).label) + '</span>' +
+    '<a class="icon-only" href="../" title="Open Timesheet">' + icon("swap") + '</a></div>';
+}
+function pageHeader(title, sub, actionsHtml) {
+  return '<div class="page-header"><div><h1 class="page-h1">' + escapeHtml(title) + '</h1>' + (sub ? '<div class="page-sub">' + escapeHtml(sub) + '</div>' : "") + '</div>' +
+    (actionsHtml ? '<div class="btn-row">' + actionsHtml + '</div>' : "") + '</div>';
 }
 
 /* ---------- Home ---------- */
@@ -172,11 +216,15 @@ function renderHome() {
   var d = state.data, today = todayIso(), y = currentTaxYear();
   var firstRun = !d.jobs.length && !d.clients.length;
 
-  var quick = '<div class="quick-grid">' +
-    '<button class="quick" data-action="new-job"><span class="q-icon">＋</span>New job</button>' +
-    '<button class="quick" data-action="new-expense"><span class="q-icon">£</span>Add expense</button>' +
-    '<button class="quick" data-action="new-mileage"><span class="q-icon">→</span>Log mileage</button>' +
-    '<button class="quick" data-action="new-client"><span class="q-icon">☺</span>Add client</button>' +
+  var hr = new Date().getHours();
+  var hello = (hr < 12 ? "Good morning" : hr < 18 ? "Good afternoon" : "Good evening") +
+    (d.settings.yourName ? ", " + d.settings.yourName.split(" ")[0] : "");
+  var quick = '<div class="greeting"><h1 class="page-h1">' + escapeHtml(hello) + '</h1><div class="page-sub">What are we doing today?</div></div>' +
+    '<div class="quick-grid">' +
+    '<button class="quick t-blue" data-action="new-job">' + icon("briefcase") + '<span>New job</span></button>' +
+    '<button class="quick t-amber" data-action="new-expense">' + icon("receipt") + '<span>Add expense</span></button>' +
+    '<button class="quick t-teal" data-action="new-mileage">' + icon("car") + '<span>Log mileage</span></button>' +
+    '<button class="quick t-rose" data-action="new-client">' + icon("users") + '<span>Add client</span></button>' +
   '</div>';
 
   if (firstRun) {

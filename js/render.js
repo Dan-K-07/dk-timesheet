@@ -9,8 +9,12 @@ function render() {
     return;
   }
   var body = state.tab === "summary" ? renderSummary() : state.tab === "docs" ? renderDocuments() : state.tab === "calc" ? renderPayCalc() : state.tab === "expenses" ? renderExpenses() : state.tab === "settings" ? renderSettings() : renderLog();
-  app.innerHTML = renderTopbar() + renderTabs() + body;
-  scrollActiveTabIntoView();
+  var t = currentTab();
+  app.innerHTML = '<div class="shell' + (state.navOpen ? " nav-open" : "") + '">' + renderSidebar() +
+    '<div class="nav-scrim" id="navScrim"></div>' +
+    '<main class="main">' + renderMobileBar() + '<div class="main-inner">' +
+      '<div class="page-header"><div><h1 class="page-h1">' + t.label + '</h1><div class="page-sub">' + t.sub + '</div></div></div>' +
+      body + '</div></main></div>';
   attachEvents();
 }
 
@@ -55,46 +59,68 @@ function renderGate() {
   }
   return '' +
     '<div class="gate-wrap"><div class="card gate-card">' +
+      '<div class="gate-brand"><span class="brand-badge">DK</span></div>' +
       '<div class="gate-mark">DK <span>Timesheet</span></div>' +
       body +
     '</div></div>';
 }
 
-function renderTopbar() {
-  var isDark = document.documentElement.getAttribute("data-theme") === "dark" ||
+/* ============ Layout: sidebar (shared look with DK Jobs) ============ */
+var NAV_TABS = [
+  { key: "summary", label: "Summary", group: "Timesheet", icon: "chart", sub: "Hours and pay at a glance" },
+  { key: "log", label: "All Data", group: "Timesheet", icon: "list", sub: "Every day you've logged" },
+  { key: "docs", label: "Documents", group: "Timesheet", icon: "file", sub: "Payslips and paperwork" },
+  { key: "calc", label: "Take-Home Pay", group: "Money", icon: "pound", sub: "What you'll actually take home" },
+  { key: "expenses", label: "Expenses", group: "Money", icon: "receipt", sub: "Regular bills and subscriptions" },
+  { key: "settings", label: "Settings", group: "Setup", icon: "gear", sub: "Date format, colours, tax and pay" }
+];
+var NAV_ICONS = {
+  chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
+  file: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h6"/>',
+  pound: '<path d="M16 6.5A4 4 0 0 0 9 8.5V18M6 18h11M6 12.5h7"/>',
+  receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
+  swap: '<path d="M7 7h13l-4-4M17 17H4l4 4"/>',
+  moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  logout: '<path d="M14 4h5v16h-5"/><path d="M10 8l-4 4 4 4M6 12h10"/>',
+  menu: '<path d="M4 6h16M4 12h16M4 18h16"/>'
+};
+function navIcon(name) {
+  return '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (NAV_ICONS[name] || "") + '</svg>';
+}
+function currentTab() {
+  return NAV_TABS.filter(function (t) { return t.key === state.tab; })[0] || NAV_TABS[1];
+}
+function isDarkMode() {
+  return document.documentElement.getAttribute("data-theme") === "dark" ||
     (!document.documentElement.hasAttribute("data-theme") && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  return '' +
-    '<div class="topbar">' +
-      '<div class="brand"><span class="mark">DK <span>Timesheet</span></span></div>' +
-      '<div class="header-actions">' +
-        '<span class="app-version" title="App version">v' + APP_VERSION + '</span>' +
-        '<span class="sync-btn" id="syncStatusPill" title="' + escapeHtml(state.user ? "Signed in as " + state.user.email : "Not connected") + '"><span class="sync-dot ' + state.syncStatus + '"></span><span class="sync-label">' + syncStatusLabel() + '</span></span>' +
-        '<button class="btn btn-sm" id="logoutBtn">Log out</button>' +
-        '<button class="theme-toggle" id="themeToggle">' + (isDark ? "Light mode" : "Dark mode") + '</button>' +
-        '<a class="btn btn-sm app-switch" href="jobs/" title="Go to DK Jobs">\u21C4 Jobs</a>' +
+}
+function renderSidebar() {
+  var group = "";
+  var links = NAV_TABS.map(function (t) {
+    var head = t.group !== group ? '<div class="nav-group">' + t.group + '</div>' : "";
+    group = t.group;
+    return head + '<button type="button" class="nav-link' + (state.tab === t.key ? " active" : "") + '" data-tab="' + t.key + '">' + navIcon(t.icon) + '<span>' + t.label + '</span></button>';
+  }).join("");
+  return '<aside class="sidebar">' +
+      '<div class="side-brand"><span class="brand-badge">DK</span><span class="brand-text">DK Timesheet<small>v' + APP_VERSION + '</small></span></div>' +
+      '<nav class="side-nav">' + links + '</nav>' +
+      '<div class="side-foot">' +
+        '<a class="switch-app" href="jobs/" title="Go to DK Jobs">' + navIcon("swap") + '<span>Open Jobs</span></a>' +
+        '<div class="foot-row">' +
+          '<span class="sync-pill" id="syncStatusPill" title="' + escapeHtml(state.user ? "Signed in as " + state.user.email : "Not connected") + '"><span class="sync-dot ' + state.syncStatus + '"></span><span class="sync-label">' + syncStatusLabel() + '</span></span>' +
+          '<button class="icon-only" id="themeToggle" title="' + (isDarkMode() ? "Light mode" : "Dark mode") + '">' + navIcon(isDarkMode() ? "sun" : "moon") + '</button>' +
+          '<button class="icon-only" id="logoutBtn" title="Log out">' + navIcon("logout") + '</button>' +
+        '</div>' +
       '</div>' +
-    '</div>';
+    '</aside>';
 }
-
-function renderTabs() {
-  return '' +
-    '<div class="tabs">' +
-      '<button class="tab' + (state.tab === "summary" ? " active" : "") + '" data-tab="summary">Summary</button>' +
-      '<button class="tab' + (state.tab === "log" ? " active" : "") + '" data-tab="log">All Data</button>' +
-      '<button class="tab' + (state.tab === "docs" ? " active" : "") + '" data-tab="docs">Documents</button>' +
-      '<button class="tab' + (state.tab === "calc" ? " active" : "") + '" data-tab="calc">Take-Home Pay</button>' +
-      '<button class="tab' + (state.tab === "expenses" ? " active" : "") + '" data-tab="expenses">Expenses</button>' +
-      '<button class="tab' + (state.tab === "settings" ? " active" : "") + '" data-tab="settings">Settings</button>' +
-    '</div>';
-}
-
-// On narrow screens the tab row scrolls sideways; keep the selected tab visible.
-function scrollActiveTabIntoView() {
-  var tabs = document.querySelector(".tabs");
-  var active = tabs && tabs.querySelector(".tab.active");
-  if (!active) return;
-  var overflow = active.offsetLeft + active.offsetWidth - tabs.clientWidth;
-  if (overflow > 0) tabs.scrollLeft = overflow + 24;
+function renderMobileBar() {
+  return '<div class="mobile-bar"><button class="icon-only" id="navOpenBtn" aria-label="Menu">' + navIcon("menu") + '</button>' +
+    '<span class="brand-badge sm">DK</span><span class="mobile-title">' + currentTab().label + '</span>' +
+    '<a class="icon-only" href="jobs/" title="Open Jobs">' + navIcon("swap") + '</a></div>';
 }
 
 function docIcon(mime, filename) {

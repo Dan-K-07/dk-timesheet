@@ -191,6 +191,6 @@ textarea.field-input { width: 100%; resize: vertical; line-height: 1.45; font-fa
   @page { margin: 14mm; }
   body { background: #fff !important; }
   #app { padding: 0; max-width: none; }
-  .topbar, .tabs, .no-print, .toast { display: none !important; }
+  .no-print, .toast { display: none !important; }
   .doc-sheet { border: none; box-shadow: none; margin: 0; padding: 0; max-width: none; }
 }
