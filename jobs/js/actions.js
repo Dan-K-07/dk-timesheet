@@ -18,15 +18,15 @@ function newJob(clientId) {
   var first = state.data.products.filter(function (p) { return p.active !== false; })[0];
   if (first) j.items.push({ id: uid("i"), desc: first.name, qty: num(first.qty) || 1, price: num(first.price) });
   state.data.jobs.push(j);
-  save();
-  go("jobs", j.id);
+  startNewRecord("jobs", j.id);
+  goNow("jobs", j.id);
   setTimeout(function () { var el = document.querySelector('[data-bind="job"][data-field="title"]'); if (el) el.focus(); }, 30);
 }
 function newClient() {
   var c = { id: uid("c"), name: "", contact: "", email: "", phone: "", address: "", terms: "", notes: "", supplierRef: "" };
   state.data.clients.push(c);
-  save();
-  go("clients", c.id);
+  startNewRecord("clients", c.id);
+  goNow("clients", c.id);
   setTimeout(function () { var el = document.querySelector('[data-bind="client"][data-field="name"]'); if (el) el.focus(); }, 30);
 }
 function addProduct(p) {
@@ -170,7 +170,7 @@ function onBoundInput(el, final) {
     var j = jobById(el.getAttribute("data-id")), tot = document.getElementById("jobTotal");
     if (j && tot) tot.textContent = money(jobNet(j));
   }
-  save();
+  updateSaveBar();
   if (final && el.getAttribute("data-rerender")) render();
 }
 
@@ -184,20 +184,41 @@ var ACTIONS = {
   "theme": toggleTheme,
   "nav-open": function () { state.navOpen = true; render(); },
   "nav-close": function () { state.navOpen = false; render(); },
-  "new-job": function (id, el) {
-    var clientId = state.route.tab === "clients" && id ? id : "";
-    newJob(clientId);
+  "new-job": function (id) {
+    guardLeave(function () {
+      var clientId = state.route.tab === "clients" && id && byId(state.data.clients, id) ? id : "";
+      newJob(clientId);
+    });
   },
-  "new-client": newClient,
+  "new-client": function () { guardLeave(newClient); },
   "new-expense": function (id) {
-    state.expEditingId = null; state.expFromJob = id || "";
-    if (state.route.tab !== "expenses") { state.pendingForm = "expense"; go("expenses"); return; }
-    state.expAdding = true; render(); focusForm("expAmount");
+    guardLeave(function () {
+      state.expEditingId = null; state.expFromJob = id || "";
+      if (state.route.tab !== "expenses") { state.pendingForm = "expense"; goNow("expenses"); return; }
+      state.expAdding = true; render(); focusForm("expAmount");
+    });
   },
   "new-mileage": function (id) {
-    state.mileEditingId = null; state.mileFromJob = id || "";
-    if (state.route.tab !== "mileage") { state.pendingForm = "mileage"; go("mileage"); return; }
-    state.mileAdding = true; render(); focusForm("mMiles");
+    guardLeave(function () {
+      state.mileEditingId = null; state.mileFromJob = id || "";
+      if (state.route.tab !== "mileage") { state.pendingForm = "mileage"; goNow("mileage"); return; }
+      state.mileAdding = true; render(); focusForm("mMiles");
+    });
+  },
+  "save": function () { saveAll().then(function (ok) { if (ok) render(); }); },
+  "discard": function () {
+    showModal({
+      icon: "warn", title: "Discard changes?", text: "Everything you've changed since you last saved will be put back.",
+      buttons: [
+        { label: "Discard Changes", cls: "modal-danger", run: function () {
+          var gone = state.newRecord;
+          discardChanges();
+          if (gone) goNow(gone.tab); else render();
+          toast("Changes discarded.");
+        } },
+        { label: "Cancel - Keep Editing", cls: "modal-neutral" }
+      ]
+    });
   },
   "open-job": function (id) { go("jobs", id); },
   "open-client": function (id) { go("clients", id); },
@@ -211,19 +232,19 @@ var ACTIONS = {
   "job-date-add": function (id) {
     var j = jobById(id); var last = (j.dates || [])[j.dates.length - 1];
     j.dates.push({ id: uid("d"), start: last ? addDays(last.end || last.start || todayIso(), 1) : todayIso(), end: "", startTime: "", endTime: "", label: "" });
-    save(); render();
+    render();
   },
-  "job-date-del": function (id, el) { var j = jobById(id); j.dates = j.dates.filter(function (d) { return d.id !== el.getAttribute("data-sub"); }); save(); render(); },
+  "job-date-del": function (id, el) { var j = jobById(id); j.dates = j.dates.filter(function (d) { return d.id !== el.getAttribute("data-sub"); }); render(); },
   "job-item-add": function (id) {
-    var j = jobById(id); j.items.push({ id: uid("i"), desc: "", qty: 1, price: 0 }); save(); render();
+    var j = jobById(id); j.items.push({ id: uid("i"), desc: "", qty: 1, price: 0 }); render();
     var inputs = document.querySelectorAll('[data-bind="job-items"][data-field="desc"]'); if (inputs.length) inputs[inputs.length - 1].focus();
   },
-  "job-item-del": function (id, el) { var j = jobById(id); j.items = j.items.filter(function (i) { return i.id !== el.getAttribute("data-sub"); }); save(); render(); },
+  "job-item-del": function (id, el) { var j = jobById(id); j.items = j.items.filter(function (i) { return i.id !== el.getAttribute("data-sub"); }); render(); },
   "job-todo-add": function (id) {
-    var j = jobById(id); j.todos = j.todos || []; j.todos.push({ id: uid("t"), text: "", done: false }); save(); render();
+    var j = jobById(id); j.todos = j.todos || []; j.todos.push({ id: uid("t"), text: "", done: false }); render();
     var inputs = document.querySelectorAll('[data-bind="job-todos"][data-field="text"]'); if (inputs.length) inputs[inputs.length - 1].focus();
   },
-  "job-todo-del": function (id, el) { var j = jobById(id); j.todos = j.todos.filter(function (t) { return t.id !== el.getAttribute("data-sub"); }); save(); render(); },
+  "job-todo-del": function (id, el) { var j = jobById(id); j.todos = j.todos.filter(function (t) { return t.id !== el.getAttribute("data-sub"); }); render(); },
   "job-invoice": function (id) { createDocFromJob(id, "invoice"); },
   "job-quote": function (id) { createDocFromJob(id, "quote"); },
   "job-duplicate": function (id) {
@@ -248,6 +269,29 @@ var ACTIONS = {
     save(); go("jobs");
   },
 
+  "job-new-client": function (id) {
+    var g = function (k) { return document.getElementById(k).value.trim(); };
+    showModal({
+      icon: "users", title: "New client", text: "Added to this job. It's kept when you save the job.",
+      body: '<div class="modal-form">' +
+        field("Company / client name", '<input class="field-input" id="ncName">') +
+        field("Contact name", '<input class="field-input" id="ncContact">') +
+        field("Email (invoices go here)", '<input type="email" class="field-input" id="ncEmail">') +
+        field("Phone", '<input type="tel" class="field-input" id="ncPhone">') + '</div>',
+      focus: "#ncName",
+      buttons: [
+        { label: "Add client", cls: "modal-primary", run: function () {
+          if (!g("ncName")) { toast("Add the client's name."); document.getElementById("ncName").focus(); return false; }
+          var c = { id: uid("c"), name: g("ncName"), contact: g("ncContact"), email: g("ncEmail"), phone: g("ncPhone"), address: "", terms: "", notes: "", supplierRef: "" };
+          state.data.clients.push(c);
+          var j = jobById(id); if (j) j.clientId = c.id;
+          render();
+        } },
+        { label: "Cancel", cls: "modal-neutral" }
+      ]
+    });
+  },
+
   /* Clients */
   "client-delete": function (id) {
     var c = byId(state.data.clients, id);
@@ -257,13 +301,13 @@ var ACTIONS = {
   },
 
   /* Price list */
-  "product-add": function () { addProduct(); save(); render(); var inputs = document.querySelectorAll('[data-bind="product"][data-field="name"]'); if (inputs.length) inputs[inputs.length - 1].focus(); },
-  "product-delete": function (id) { state.data.products = state.data.products.filter(function (p) { return p.id !== id; }); save(); render(); },
+  "product-add": function () { addProduct(); render(); var inputs = document.querySelectorAll('[data-bind="product"][data-field="name"]'); if (inputs.length) inputs[inputs.length - 1].focus(); },
+  "product-delete": function (id) { state.data.products = state.data.products.filter(function (p) { return p.id !== id; }); render(); },
   "products-starter": function () {
     [{ name: "Day rate", desc: "Up to 10 hours", price: 0 }, { name: "Half day", desc: "Up to 5 hours", price: 0 },
      { name: "Overtime (per hour)", desc: "", price: 0 }, { name: "Travel day", desc: "", price: 0 }, { name: "Per diem", desc: "Meals while away", price: 0 }]
       .forEach(addProduct);
-    save(); render(); toast("Added — now fill in your prices.");
+    render(); toast("Added — fill in your prices, then press Save.");
   },
 
   /* Quotes & invoices */
@@ -317,7 +361,7 @@ var ACTIONS = {
     if (d.number === prefix + String(num(s[key]) - 1).padStart(4, "0")) s[key] = num(s[key]) - 1;
     save(); history.length > 1 ? history.back() : go("invoices");
   },
-  "doc-item-add": function (id) { var d = byId(state.data.invoices, id); d.items.push({ id: uid("i"), desc: "", qty: 1, price: 0 }); save(); render(); },
+  "doc-item-add": function (id) { var d = byId(state.data.invoices, id); d.items.push({ id: uid("i"), desc: "", qty: 1, price: 0 }); render(); },
   "doc-item-del": function (id, el) {
     var d = byId(state.data.invoices, id), sub = el.getAttribute("data-sub");
     var it = byId(d.items, sub);
@@ -327,18 +371,20 @@ var ACTIONS = {
       if (it.src.type === "item") state.data.jobs.forEach(function (j) { (j.items || []).forEach(function (x) { if (x.id === it.src.id) delete x.invoiceId; }); });
       list.forEach(function (x) { if (x.id === it.src.id) delete x.invoiceId; });
     }
-    d.items = d.items.filter(function (i) { return i.id !== sub; }); save(); render();
+    d.items = d.items.filter(function (i) { return i.id !== sub; }); render();
   },
 
   /* Expenses */
   "exp-cancel": function () { state.expAdding = false; state.expEditingId = null; render(); },
-  "exp-edit": function (id) { state.expEditingId = id; state.expAdding = false; render(); focusForm("expAmount"); },
+  "exp-edit": function (id) { guardLeave(function () { state.expEditingId = id; state.expAdding = false; render(); focusForm("expAmount"); }); },
   "exp-dup": function (id) {
-    var e = byId(state.data.expenses, id);
-    var copy = Object.assign({}, e, { id: uid("e"), date: todayIso(), receiptPath: "" });
-    delete copy.invoiceId;
-    state.data.expenses.push(copy); save(); state.expEditingId = copy.id; render(); focusForm("expAmount");
-    toast("Copied to today — check the amount and add the new receipt.");
+    guardLeave(function () {
+      var e = byId(state.data.expenses, id);
+      var copy = Object.assign({}, e, { id: uid("e"), date: todayIso(), receiptPath: "" });
+      delete copy.invoiceId;
+      state.data.expenses.push(copy); save(); state.expEditingId = copy.id; render(); focusForm("expAmount");
+      toast("Copied to today — check the amount and add the new receipt.");
+    });
   },
   "exp-del": function (id) {
     var e = byId(state.data.expenses, id);
@@ -352,7 +398,7 @@ var ACTIONS = {
 
   /* Mileage */
   "mile-cancel": function () { state.mileAdding = false; state.mileEditingId = null; render(); },
-  "mile-edit": function (id) { state.mileEditingId = id; state.mileAdding = false; render(); focusForm("mMiles"); },
+  "mile-edit": function (id) { guardLeave(function () { state.mileEditingId = id; state.mileAdding = false; render(); focusForm("mMiles"); }); },
   "mile-del": function (id) {
     var m = byId(state.data.mileage, id);
     if (m.invoiceId) { alert("This journey is on an invoice. Remove it from the invoice first."); return; }
@@ -368,9 +414,9 @@ var ACTIONS = {
   "export-mileage-report": function () { var y = state.reportYear || currentTaxYear(); exportMileage(y, periodRange(y, state.reportQuarter)); },
 
   /* Settings */
-  "cat-add": function () { state.data.settings.expenseCategories.push({ name: "New category", hmrc: "other" }); save(); render(); },
-  "cat-del": function (id) { state.data.settings.expenseCategories.splice(parseInt(id, 10), 1); save(); render(); },
-  "logo-remove": function () { state.data.settings.logo = ""; save(); render(); },
+  "cat-add": function () { state.data.settings.expenseCategories.push({ name: "New category", hmrc: "other" }); render(); },
+  "cat-del": function (id) { state.data.settings.expenseCategories.splice(parseInt(id, 10), 1); render(); },
+  "logo-remove": function () { state.data.settings.logo = ""; render(); },
   "backup-export": function () {
     var blob = new Blob([JSON.stringify({ app: "dk-jobs", version: JOBS_VERSION, exported: new Date().toISOString(), data: state.data }, null, 2)], { type: "application/json" });
     var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "dk-jobs-backup-" + todayIso() + ".json";
@@ -384,11 +430,11 @@ function focusForm(id) { setTimeout(function () { var el = document.getElementBy
 async function submitExpense(form) {
   var g = function (id) { var el = document.getElementById(id); return el ? el.value.trim() : ""; };
   var amount = num(g("expAmount"));
-  if (!g("expDate")) { toast("Add the date."); return; }
-  if (amount <= 0) { toast("Add the amount."); return; }
+  if (!g("expDate")) { toast("Add the date."); return false; }
+  if (amount <= 0) { toast("Add the amount."); return false; }
   var id = form.getAttribute("data-id");
   var e = id ? byId(state.data.expenses, id) : { id: uid("e"), created: new Date().toISOString() };
-  if (e.invoiceId && round2(num(e.amount)) !== round2(amount)) { toast("This expense is on an invoice — the amount can't change."); return; }
+  if (e.invoiceId && round2(num(e.amount)) !== round2(amount)) { toast("This expense is on an invoice — the amount can't change."); return false; }
   Object.assign(e, {
     date: g("expDate"), merchant: g("expMerchant"), category: g("expCategory"), amount: round2(amount),
     desc: g("expDesc"), vat: vatOn() ? round2(num(g("expVat"))) : (e.vat || 0), jobId: g("expJob"),
@@ -404,29 +450,33 @@ async function submitExpense(form) {
     } catch (err) {
       state.receiptBusy = false; render();
       toast("Receipt upload failed (" + errMessage(err) + "). The expense wasn't saved — try again.");
-      return;
+      return false;
     }
     state.receiptBusy = false;
   }
   if (!id) state.data.expenses.push(e);
   state.expAdding = false; state.expEditingId = null;
+  state.formKey = null;
   save(); render(); toast("Expense saved.");
+  return true;
 }
 function submitMileage(form) {
   var g = function (id) { var el = document.getElementById(id); return el ? el.value.trim() : ""; };
   var miles = num(g("mMiles"));
-  if (!g("mDate")) { toast("Add the date."); return; }
-  if (miles <= 0) { toast("Add the miles."); return; }
+  if (!g("mDate")) { toast("Add the date."); return false; }
+  if (miles <= 0) { toast("Add the miles."); return false; }
   var id = form.getAttribute("data-id");
   var m = id ? byId(state.data.mileage, id) : { id: uid("m"), created: new Date().toISOString() };
-  if (m.invoiceId && (round2(num(m.miles)) !== round2(miles))) { toast("This journey is on an invoice — the miles can't change."); return; }
+  if (m.invoiceId && (round2(num(m.miles)) !== round2(miles))) { toast("This journey is on an invoice — the miles can't change."); return false; }
   Object.assign(m, {
     date: g("mDate"), jobId: g("mJob"), from: g("mFrom"), to: g("mTo"), miles: round2(miles), trip: g("mTrip"),
     desc: g("mDesc"), billable: document.getElementById("mBillable").checked, billRate: round2(num(g("mBillRate")))
   });
   if (!id) state.data.mileage.push(m);
   state.mileAdding = false; state.mileEditingId = null;
+  state.formKey = null;
   save(); render(); toast("Journey saved.");
+  return true;
 }
 function updateMileagePreview() {
   var p = document.getElementById("mPreview"); if (!p) return;
@@ -439,6 +489,31 @@ function updateMileagePreview() {
     link.href = "https://www.google.com/maps/dir/?api=1&origin=" + encodeURIComponent(from || "") + "&destination=" + encodeURIComponent(to || "") + "&travelmode=driving";
     link.style.visibility = from && to ? "visible" : "hidden";
   }
+}
+
+/* ---------- Saving ---------- */
+// An open expense or mileage form counts as unsaved once you change it.
+function openForm() { return document.getElementById("expenseForm") || document.getElementById("mileageForm"); }
+function formValues(f) {
+  return Array.prototype.map.call(f.querySelectorAll("input, select, textarea"), function (el) {
+    return el.type === "checkbox" ? el.checked : el.type === "file" ? el.files.length : el.value;
+  }).join("\u0001");
+}
+function rememberForm() {
+  var f = openForm(), key = f ? f.id + ":" + f.getAttribute("data-id") : "";
+  if (key !== state.formKey) { state.formKey = key; state.formJson = f ? formValues(f) : ""; }
+}
+function formChanged() { var f = openForm(); return !!f && formValues(f) !== state.formJson; }
+// The Save button (and "Save & Leave"). Resolves to false if something
+// needs fixing first, so you stay on the page.
+async function saveAll() {
+  var f = openForm();
+  if (f && formChanged()) {
+    var ok = f.id === "expenseForm" ? await submitExpense(f) : submitMileage(f);
+    if (!ok) return false;
+  }
+  if (dataChanged()) { save(); toast("Saved."); }
+  return true;
 }
 
 /* ---------- Wiring ---------- */
@@ -470,19 +545,19 @@ document.addEventListener("input", function (ev) {
     var c = state.data.settings.expenseCategories[parseInt(el.getAttribute("data-cat-index"), 10)];
     var old = c.name; c[el.getAttribute("data-cat-field")] = el.value;
     if (el.getAttribute("data-cat-field") === "name") state.data.expenses.forEach(function (e) { if (e.category === old) e.category = el.value; });
-    save();
   }
   if (/^m(Miles|Trip|Date|From|To)$/.test(el.id)) updateMileagePreview();
+  updateSaveBar();
 });
 document.addEventListener("change", function (ev) {
   var el = ev.target;
   if (el.hasAttribute("data-bind")) { onBoundInput(el, true); return; }
   if (el.getAttribute("data-action-change") === "job-item-product") {
     var p = byId(state.data.products, el.value), j = jobById(el.getAttribute("data-id"));
-    if (p && j) { j.items.push({ id: uid("i"), desc: p.name, qty: num(p.qty) || 1, price: num(p.price) }); save(); render(); }
+    if (p && j) { j.items.push({ id: uid("i"), desc: p.name, qty: num(p.qty) || 1, price: num(p.price) }); render(); }
     return;
   }
-  if (el.hasAttribute("data-cat-index")) { save(); return; }
+  if (el.hasAttribute("data-cat-index")) { updateSaveBar(); return; }
   if (el.id === "mJob") {
     var jj = jobById(el.value), to = document.getElementById("mTo"), dt = document.getElementById("mDate");
     if (jj && to && !to.value) to.value = jj.venue || "";
@@ -494,12 +569,19 @@ document.addEventListener("change", function (ev) {
   if (el.id === "reportYearSel") { state.reportYear = parseInt(el.value, 10); render(); }
   if (el.id === "logoFile" && el.files[0]) readLogo(el.files[0]);
   if (el.id === "backupFile" && el.files[0]) restoreBackup(el.files[0]);
+  updateSaveBar();
 });
 document.addEventListener("submit", function (ev) {
   if (ev.target.id === "expenseForm") { ev.preventDefault(); submitExpense(ev.target); }
   if (ev.target.id === "mileageForm") { ev.preventDefault(); submitMileage(ev.target); }
 });
 document.addEventListener("keydown", function (ev) {
+  if (modalOpen()) { if (ev.key === "Escape") closeModal(); return; }
+  if ((ev.ctrlKey || ev.metaKey) && ev.key === "s" && state.authed) {
+    ev.preventDefault();
+    if (hasChanges()) { if (document.activeElement) document.activeElement.blur(); saveAll().then(function (ok) { if (ok) render(); }); }
+    return;
+  }
   if ((ev.key === "Enter" || ev.key === " ") && ev.target.matches("tr.link-row, div.link-row")) { ev.preventDefault(); ev.target.click(); }
 });
 
@@ -511,7 +593,7 @@ function readLogo(file) {
     var max = 400, scale = Math.min(1, max / Math.max(img.width, img.height));
     var c = document.createElement("canvas"); c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
     c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-    state.data.settings.logo = c.toDataURL("image/png"); save(); render(); toast("Logo added.");
+    state.data.settings.logo = c.toDataURL("image/png"); render(); toast("Logo added.");
   };
   img.onerror = function () { toast("Couldn't read that image."); };
   reader.readAsDataURL(file);

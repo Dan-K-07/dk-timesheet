@@ -7,7 +7,7 @@
    to the other.
    ===================================================================== */
 
-var JOBS_VERSION = "1.1.0"; // bump this whenever you change the Jobs app
+var JOBS_VERSION = "1.2.0"; // bump this whenever you change the Jobs app
 var SUPABASE_URL = "https://axiqpqjquywvzymmzwgr.supabase.co";
 var SUPABASE_ANON_KEY = "sb_publishable_gO1jSR_OETTKmwCz-hEb3w_JUYS1tik";
 var AUTH_STORAGE_KEY = "dk_timesheet_auth_v1"; // shared with the timesheet
@@ -92,7 +92,13 @@ var state = {
   mileEditingId: null, mileAdding: false, mileFromJob: null,
   clientEditingId: null, clientAdding: false,
   productEditingId: null, productAdding: false,
-  receiptBusy: false
+  receiptBusy: false,
+  // Unsaved changes: edits stay on screen until you press Save.
+  savedJson: "",     // what's saved on this device right now
+  baseJson: "",      // what counts as "no changes" on this page
+  newRecord: null,   // { tab, id } of a just-created job/client not saved yet
+  remoteData: null,  // an update from another device that arrived mid-edit
+  formKey: null, formJson: ""  // an open expense / mileage form, as it first appeared
 };
 var sbClient = null, realtimeChannel = null, syncPushTimer = null, syncRetryTimer = null;
 
@@ -151,16 +157,53 @@ function normaliseData(d) {
 function loadLocal() {
   try { state.data = normaliseData(JSON.parse(localStorage.getItem(DATA_KEY) || "null")); }
   catch (e) { state.data = emptyData(); }
+  markSaved();
   var theme = null;
   try { theme = localStorage.getItem(THEME_KEY); } catch (e) {}
   if (theme) document.documentElement.setAttribute("data-theme", theme);
 }
-/* Call after every change. Saves on this device straight away and sends
-   to your account shortly after. */
+/* Saves everything on screen: on this device straight away and to your
+   account shortly after. Typing into a page doesn't call this - the Save
+   button (or a button that does something, like Create invoice) does. */
 function save(skipPush) {
   try { localStorage.setItem(DATA_KEY, JSON.stringify(state.data)); }
   catch (e) { toast("Couldn't save - your browser storage may be full (a large logo can cause this)."); }
+  markSaved();
   if (!skipPush) scheduleSyncPush();
+}
+function markSaved() {
+  state.savedJson = state.baseJson = JSON.stringify(state.data);
+  state.newRecord = null;
+  if (state.remoteData) { state.remoteData = null; toast("Saved. Your changes replace the ones made on your other device."); }
+  if (typeof updateSaveBar === "function") updateSaveBar();
+}
+// A job or client was just created on screen. Nothing counts as a change
+// until you type into it, and it's dropped if you leave without saving.
+function startNewRecord(tab, id) {
+  state.baseJson = JSON.stringify(state.data);
+  state.newRecord = { tab: tab, id: id };
+}
+function dataChanged() { return JSON.stringify(state.data) !== state.baseJson; }
+function hasChanges() { return dataChanged() || formChanged(); }
+// Put everything back as it was last saved (or take the update from
+// another device that arrived while you were editing).
+function discardChanges() {
+  if (state.remoteData) { state.data = state.remoteData; state.remoteData = null; save(true); }
+  else { state.data = normaliseData(JSON.parse(state.savedJson || "null")); markSaved(); }
+  state.expAdding = state.mileAdding = false; state.expEditingId = state.mileEditingId = null;
+  state.formKey = null;
+}
+// New data from your account (another device, or when you log in).
+function applyIncoming(data, quiet) {
+  if (hasChanges() || state.newRecord) {
+    state.remoteData = normaliseData(data);
+    toast("Changed on another device. Save to keep your edits, or discard them to see that change.");
+    return false;
+  }
+  state.data = normaliseData(data);
+  save(true);
+  if (!quiet) render();
+  return true;
 }
 function getClientId() {
   var id = null;
@@ -227,7 +270,8 @@ function updateSyncStatusUI() {
 }
 
 async function pushRow() {
-  var payload = { user_id: state.user.id, data: state.data, updated_by: getClientId(), updated_at: new Date().toISOString() };
+  // Only what's been saved goes up - never half-finished edits on screen.
+  var payload = { user_id: state.user.id, data: JSON.parse(state.savedJson), updated_by: getClientId(), updated_at: new Date().toISOString() };
   var res = await sbClient.from(SYNC_TABLE).upsert(payload, { onConflict: "user_id" });
   if (res.error) throw res.error;
 }
@@ -260,14 +304,9 @@ function handleRemoteChange(payload) {
   var row = payload && payload.new;
   if (!row || row.updated_by === getClientId()) return;
   if (unsyncedFor(state.user.id)) { retryUnsyncedNow(); return; }
-  state.data = normaliseData(row.data);
-  save(true);
   state.syncStatus = "synced";
-  // Don't redraw under someone typing in a form.
-  var a = document.activeElement;
-  if (a && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) { toast("Updated from another device - reopen this page to see it."); return; }
-  toast("Updated from another device.");
-  render();
+  if (applyIncoming(row.data, true)) { toast("Updated from another device."); render(); }
+  else updateSyncStatusUI();
 }
 function subscribeRealtime() {
   if (realtimeChannel) { try { sbClient.removeChannel(realtimeChannel); } catch (e) {} }
@@ -331,10 +370,9 @@ async function startSession(user) {
       await pushRow(); clearUnsynced(pending.at);
       toast("Back online — changes made on this device have been synced.");
     } else if (res.data) {
-      state.data = normaliseData(res.data.data);
-      save(true);
+      applyIncoming(res.data.data, true);
     } else {
-      if (!state.data.settings.email) state.data.settings.email = user.email || "";
+      if (!state.data.settings.email && !hasChanges()) { state.data.settings.email = user.email || ""; save(true); }
       await pushRow();
     }
     subscribeRealtime();

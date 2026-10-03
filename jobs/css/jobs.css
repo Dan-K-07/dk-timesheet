@@ -168,14 +168,65 @@ textarea.field-input { width: 100%; resize: vertical; line-height: 1.45; font-fa
 .ds-totals td { padding: 4px; }
 .ds-grand td { font-weight: 700; font-size: 15px; border-top: 2px solid #1d1d1d; padding-top: 8px; }
 
+/* Save bar: sits along the bottom on pages you edit */
+.save-bar {
+  position: fixed; left: 236px; right: 0; bottom: 0; z-index: 15;
+  background: var(--panel); border-top: 1px solid var(--line); box-shadow: 0 -6px 18px rgba(25,30,60,0.06);
+}
+.save-bar.hidden { display: none; }
+.save-bar-inner { max-width: 1180px; margin: 0 auto; padding: 10px 32px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.save-msg { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-dim); font-weight: 600; font-size: 13.5px; }
+.save-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--holiday); }
+.save-bar.dirty { border-top-color: var(--onsite); }
+.save-bar.dirty .save-msg { color: var(--ink); }
+.save-bar.dirty .save-dot { background: var(--onsite); }
+.save-bar .btn { display: inline-flex; align-items: center; gap: 6px; }
+.save-bar .ico { width: 16px; height: 16px; }
+.main-inner { padding-bottom: 110px; }
+.toast { bottom: 84px; z-index: 60; }
+.side-select { margin-top: 8px; width: 100%; }
+
+/* Popups (unsaved changes, new client) */
+.modal-scrim {
+  position: fixed; inset: 0; z-index: 50; background: rgba(15,18,35,0.45); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.modal-card {
+  width: 100%; max-width: 400px; max-height: calc(100vh - 32px); overflow-y: auto;
+  background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 22px;
+  padding: 30px 28px 24px; text-align: center; box-shadow: 0 20px 50px rgba(15,18,35,0.25);
+}
+.modal-icon { width: 58px; height: 58px; border-radius: 16px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; background: var(--accent-soft); color: var(--accent); }
+.modal-icon .ico { width: 26px; height: 26px; }
+.modal-icon.warn { background: var(--onsite-bg); color: var(--onsite); }
+.modal-title { font-size: 20px; font-weight: 800; margin: 0 0 8px; letter-spacing: -0.01em; }
+.modal-text { color: var(--ink-dim); margin: 0 0 20px; line-height: 1.55; }
+.modal-form { text-align: left; margin-bottom: 18px; display: grid; gap: 10px; }
+.modal-form .field-input { width: 100%; }
+.modal-btns { display: flex; flex-direction: column; gap: 10px; }
+.modal-btn {
+  width: 100%; border: none; border-radius: 12px; padding: 13px 16px; font: inherit; font-weight: 700; font-size: 15px;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+}
+.modal-btn .ico { width: 17px; height: 17px; }
+.modal-btn:hover { filter: brightness(0.97); }
+.modal-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.modal-primary { background: var(--accent); color: var(--accent-ink); }
+.modal-danger { background: var(--sick-bg); color: var(--danger); }
+.modal-neutral { background: var(--panel-2); color: var(--ink); }
+
 @media (max-width: 900px) {
-  .job-layout, .two-col, .settings-grid { grid-template-columns: 1fr; }
+  .save-bar { left: 0; }
+  .save-bar-inner { padding: 10px 16px; }
+  .job-layout, .two-col, .settings-grid { grid-template-columns: minmax(0, 1fr); }
   .stat-grid-4 { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 640px) {
   .quick-grid { grid-template-columns: repeat(2, 1fr); }
   .stat-grid-4 { grid-template-columns: 1fr 1fr; }
   .form-grid .span-3 { grid-column: span 2; }
+  .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .form-grid .field-input { min-width: 0; width: 100%; }
   .date-row { grid-template-columns: 1fr 1fr; }
   .date-row .row-x { justify-self: start; }
   .header-actions { flex-wrap: wrap; }
@@ -185,12 +236,16 @@ textarea.field-input { width: 100%; resize: vertical; line-height: 1.45; font-fa
   .ds-meta { margin-left: 0; }
   .ds-meta td { padding: 1px 14px 1px 0; }
   .ds-meta td:last-child { text-align: left; }
+  .save-bar-inner { padding: 8px 12px; gap: 8px; }
+  .save-bar .btn-row { flex-wrap: nowrap; gap: 4px; }
+  .save-msg { font-size: 12.5px; }
+  .save-bar .btn-ghost { padding-left: 8px; padding-right: 8px; }
 }
 
 @media print {
   @page { margin: 14mm; }
   body { background: #fff !important; }
   #app { padding: 0; max-width: none; }
-  .no-print, .toast { display: none !important; }
+  .no-print, .toast, .save-bar, #modal { display: none !important; }
   .doc-sheet { border: none; box-shadow: none; margin: 0; padding: 0; max-width: none; }
 }
