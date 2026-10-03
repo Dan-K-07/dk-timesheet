@@ -147,7 +147,7 @@ function renderDocPage(id) {
         field("Number", bound("doc", d.id, "number", d.number, { rerender: true })) +
         field("Purchase order", bound("doc", d.id, "po", d.po, { rerender: true })) +
         field("Description", bound("doc", d.id, "summary", d.summary, { type: "textarea", rows: 2, rerender: true }), "full") +
-        field("Terms / notes at the bottom", bound("doc", d.id, "terms", d.terms, { type: "textarea", rows: 2, rerender: true, placeholder: "Leave blank for none" }) +
+        field("Terms / notes at the bottom", bound("doc", d.id, "terms", d.terms, { type: "textarea", rows: d.terms && d.terms.length > 200 ? 8 : 3, rerender: true, placeholder: "Leave blank for none" }) +
           (state.data.settings.termsText && d.terms !== state.data.settings.termsText ?
             '<div class="btn-row terms-btns">' + btn("Use terms from Settings", "doc-terms-template", { id: d.id, cls: "btn-sm" }) + '</div>' : ""), "full") +
       '</div>' +
@@ -162,45 +162,58 @@ function renderDocPage(id) {
     editor + renderDocSheet(d, t);
 }
 
-/* The printable page. Kept plain so it prints cleanly in black and white. */
+/* The on-screen preview. Laid out the same way as the downloaded PDF
+   (pdf.js), so what you see is what the client gets. */
 function renderDocSheet(d, t) {
   var s = state.data.settings, isInv = d.kind === "invoice";
-  var from = [s.yourName && s.businessName ? s.yourName : "", s.address, s.phone, s.email, s.website].filter(Boolean);
-  var bank = (isInv || s.showBankOnQuotes) && (s.accountNumber || s.sortCode) ?
-    '<div class="ds-block"><div class="ds-label">Payment details</div>' +
-      (s.bankName ? '<div>' + escapeHtml(s.bankName) + '</div>' : "") +
-      (s.accountName ? '<div>Account name: ' + escapeHtml(s.accountName) + '</div>' : "") +
-      (s.sortCode ? '<div>Sort code: ' + escapeHtml(s.sortCode) + '</div>' : "") +
-      (s.accountNumber ? '<div>Account number: ' + escapeHtml(s.accountNumber) + '</div>' : "") +
-      '<div>Reference: ' + escapeHtml(d.number) + '</div></div>' : "";
+  var from = [s.yourName && s.businessName ? s.yourName : ""].concat(String(s.address || "").split("\n"), [s.phone, s.email, s.website])
+    .map(function (x) { return (x || "").trim(); }).filter(Boolean);
+  var meta = [[isInv ? "Invoice Date" : "Quote Date", fmtDate(d.date)], [isInv ? "Due Date" : "Valid Until", fmtDate(d.due)]];
+  if (d.client.supplierRef) meta.push(["Supplier Ref", d.client.supplierRef]);
+  if (s.vatRegistered && s.vatNumber) meta.push(["VAT No.", s.vatNumber]);
+  var hasJob = !!(d.title || d.venue || d.jobDates || d.po);
   var lines = d.items.map(function (it) {
     return '<tr><td>' + escapeHtml(it.desc) + '</td><td class="num">' + escapeHtml(String(num(it.qty))) + '</td><td class="num">' + money(it.price) + '</td><td class="num">' + money(lineNet(it)) + '</td></tr>';
   }).join("");
-  var terms = String(d.terms || "").replace(/\{days\}/g, String(d.termsDays || s.paymentTerms));
+  var bankCols = [["Account Name", s.accountName], ["Account Number", s.accountNumber], ["Sort Code", s.sortCode], ["Reference", d.number]].filter(function (c) { return c[1]; });
+  var bank = (isInv || s.showBankOnQuotes) && (s.accountNumber || s.sortCode) ?
+    '<div class="ds-shade"><div class="ds-h">Payment Details' + (s.bankName ? " · " + escapeHtml(s.bankName) : "") + '</div><div class="ds-bank">' +
+      bankCols.map(function (c) { return '<div><div class="ds-h">' + c[0] + '</div><div class="ds-v">' + escapeHtml(c[1]) + '</div></div>'; }).join("") + '</div></div>' : "";
+  var terms = String(d.terms || "").replace(/\{days\}/g, String(d.termsDays || s.paymentTerms)).trim();
+  var termsHtml = terms ? '<div class="ds-shade ds-terms"><div class="ds-h ds-h-lg">' + (isInv ? "Payment Terms &amp; Conditions" : "Terms &amp; Conditions") + '</div>' +
+    terms.split("\n").map(function (p) {
+      p = p.trim();
+      if (!p) return '<div class="ds-gap"></div>';
+      return '<div class="' + (isTermsHeading(p) ? "ds-th" : "ds-tp") + '">' + escapeHtml(p) + '</div>';
+    }).join("") + '</div>' : "";
   return '<div class="doc-sheet">' +
     '<div class="ds-top">' +
       '<div class="ds-from">' + (s.logo ? '<img class="ds-logo" src="' + attr(s.logo) + '" alt="">' : "") +
-        '<div class="ds-biz">' + escapeHtml(s.businessName || s.yourName || "Your business name") + '</div>' +
-        '<div class="ds-small pre">' + escapeHtml(from.join("\n")) + '</div></div>' +
-      '<div class="ds-title"><div class="ds-kind">' + (isInv ? "INVOICE" : "QUOTATION") + '</div>' +
-        '<table class="ds-meta"><tr><td>' + (isInv ? "Invoice no." : "Quote no.") + '</td><td>' + escapeHtml(d.number) + '</td></tr>' +
-        '<tr><td>Date</td><td>' + fmtDate(d.date) + '</td></tr>' +
-        '<tr><td>' + (isInv ? "Due" : "Valid until") + '</td><td>' + fmtDate(d.due) + '</td></tr>' +
-        (d.po ? '<tr><td>PO</td><td>' + escapeHtml(d.po) + '</td></tr>' : "") +
-        (d.client.supplierRef ? '<tr><td>Supplier ref</td><td>' + escapeHtml(d.client.supplierRef) + '</td></tr>' : "") +
-        (s.vatRegistered && s.vatNumber ? '<tr><td>VAT no.</td><td>' + escapeHtml(s.vatNumber) + '</td></tr>' : "") +
-        '</table></div>' +
+        '<div><div class="ds-h">From</div><div class="ds-biz">' + escapeHtml(s.businessName || s.yourName || "Your business name") + '</div>' +
+        '<div class="ds-dim pre">' + escapeHtml(from.join("\n")) + '</div></div></div>' +
+      '<div class="ds-title"><div class="ds-kind">' + (isInv ? "INVOICE" : "QUOTE") + '</div><div class="ds-no">' + escapeHtml(d.number) + '</div>' +
+        meta.map(function (m) { return '<div class="ds-meta"><div class="ds-h">' + m[0] + '</div><div class="ds-v ds-v-lg">' + escapeHtml(m[1]) + '</div></div>'; }).join("") + '</div>' +
     '</div>' +
-    '<div class="ds-block"><div class="ds-label">' + (isInv ? "Bill to" : "Prepared for") + '</div>' +
-      '<div class="ds-strong">' + escapeHtml(d.client.name || "") + '</div>' +
-      '<div class="pre">' + escapeHtml([d.client.contact, d.client.address].filter(Boolean).join("\n")) + '</div></div>' +
-    ((d.title || d.summary) ? '<div class="ds-block"><div class="ds-strong">' + escapeHtml(d.title || "") + (d.venue ? " · " + escapeHtml(d.venue) : "") + (d.jobDates ? " · " + escapeHtml(d.jobDates) : "") + '</div>' +
-      (d.summary ? '<div class="pre">' + escapeHtml(d.summary) + '</div>' : "") + '</div>' : "") +
-    '<table class="ds-lines"><thead><tr><th>Description</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Amount</th></tr></thead><tbody>' + lines + '</tbody></table>' +
-    '<table class="ds-totals">' +
-      (d.vatRate ? '<tr><td>Subtotal</td><td class="num">' + money(t.net) + '</td></tr><tr><td>VAT @ ' + num(d.vatRate) + '%</td><td class="num">' + money(t.vat) + '</td></tr>' : "") +
-      '<tr class="ds-grand"><td>' + (isInv ? "Total due" : "Total") + '</td><td class="num">' + money(t.gross) + '</td></tr></table>' +
-    bank +
-    (terms ? '<div class="ds-block ds-small pre">' + escapeHtml(terms) + '</div>' : "") +
+    '<div class="ds-boxes' + (hasJob ? "" : " one") + '">' +
+      '<div class="ds-box"><div class="ds-h">' + (isInv ? "Bill To" : "Prepared For") + '</div>' +
+        '<div class="ds-client">' + escapeHtml(d.client.name || "") + '</div>' +
+        (d.client.email ? '<div class="ds-email">' + escapeHtml(d.client.email) + '</div>' : "") +
+        '<div class="pre">' + escapeHtml(String(d.client.address || "").trim()) + '</div>' +
+        (d.client.contact ? '<div class="ds-dim">Attn: ' + escapeHtml(d.client.contact) + '</div>' : "") + '</div>' +
+      (hasJob ? '<div class="ds-box"><div class="ds-h">Job Details</div>' +
+        (d.title ? '<div class="ds-job">' + escapeHtml(d.title) + '</div>' : "") +
+        (d.venue ? '<div class="ds-venue">' + escapeHtml(d.venue) + '</div>' : "") +
+        (d.jobDates ? '<div class="ds-dates">' + escapeHtml(d.jobDates) + '</div>' : "") +
+        (d.po ? '<div class="ds-dates">PO: ' + escapeHtml(d.po) + '</div>' : "") + '</div>' : "") +
+    '</div>' +
+    (d.summary ? '<div class="ds-summary pre">' + escapeHtml(d.summary) + '</div>' : "") +
+    '<div class="ds-h">Line Items</div>' +
+    '<div class="ds-table"><table class="ds-lines"><thead><tr><th>Description</th><th class="num">Qty</th><th class="num">Unit Price</th><th class="num">Amount</th></tr></thead><tbody>' + lines + '</tbody></table></div>' +
+    '<div class="ds-totals">' +
+      '<div class="ds-trow"><span>Subtotal</span><b>' + money(t.net) + '</b></div>' +
+      (d.vatRate ? '<div class="ds-trow"><span>VAT @ ' + num(d.vatRate) + '%</span><b>' + money(t.vat) + '</b></div>' : "") +
+      '<div class="ds-grand"><span>' + (isInv ? "Total Payable" : "Quote Total") + '</span><b>' + money(t.gross) + '</b></div>' +
+    '</div>' +
+    bank + termsHtml +
   '</div>';
 }

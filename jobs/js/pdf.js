@@ -19,6 +19,9 @@ function pdfText(s) {
     .replace(/\s*[→⇒➜]\s*/g, " to ").replace(/[−‒]/g, "-").replace(/[   ]/g, " ")
     .replace(/[^\x00-\xFF€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ]/g, "");
 }
+// Short numbered lines like "1. Payment Terms" are shown as headings
+// (in the PDF and the on-screen preview).
+function isTermsHeading(p) { return p.length <= 60 && /^(\d+[.)]|[A-Z][A-Za-z &/-]{2,40}:?$)/.test(p) && !/[.,;]$/.test(p); }
 function pdfMoney(n) { return pdfText(money(n)); }
 function docFileName(d) {
   var parts = [d.number, d.title || (d.client && d.client.name)].filter(Boolean).map(function (p) { return pdfText(p).trim(); });
@@ -186,7 +189,7 @@ function buildDocPdf(d) {
     terms.split("\n").forEach(function (para) {
       para = para.trim();
       if (!para) { ty2 += step * 0.7; return; }
-      var head = para.length <= 60 && /^(\d+[.)]|[A-Z][A-Za-z &/-]{2,40}:?$)/.test(para) && !/[.,;]$/.test(para);
+      var head = isTermsHeading(para);
       font(8.5, head ? "bold" : "normal");
       if (head) fit(step * 3);
       lines(para, CW - 2 * tpad).forEach(function (l) { fit(step); ops.push({ page: page, y: ty2, t: l, h: head ? "head" : "" }); lastY = ty2; ty2 += step; });
