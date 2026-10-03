@@ -71,6 +71,7 @@ function renderTopbar() {
         '<span class="sync-btn" id="syncStatusPill" title="' + escapeHtml(state.user ? "Signed in as " + state.user.email : "Not connected") + '"><span class="sync-dot ' + state.syncStatus + '"></span><span class="sync-label">' + syncStatusLabel() + '</span></span>' +
         '<button class="btn btn-sm" id="logoutBtn">Log out</button>' +
         '<button class="theme-toggle" id="themeToggle">' + (isDark ? "Light mode" : "Dark mode") + '</button>' +
+        '<a class="btn btn-sm app-switch" href="jobs/" title="Go to DK Jobs">\u21C4 Jobs</a>' +
       '</div>' +
     '</div>';
 }
