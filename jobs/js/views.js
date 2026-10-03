@@ -86,7 +86,7 @@ window.addEventListener("hashchange", function () {
 // Links (sidebar, back links, Open Timesheet) ask first if there are unsaved changes.
 document.addEventListener("click", function (ev) {
   var a = ev.target.closest("a[href]");
-  if (!a || a.target === "_blank" || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.button) return;
+  if (!a || a.target === "_blank" || a.hasAttribute("download") || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.button) return;
   var href = a.getAttribute("href");
   if (/^(mailto:|tel:|https?:)/.test(href) || !hasChanges()) return;
   ev.preventDefault(); ev.stopPropagation();

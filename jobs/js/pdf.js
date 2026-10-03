@@ -188,10 +188,16 @@ function buildDocPdf(d) {
   return pdf;
 }
 
-// Saves the PDF straight into your Downloads folder.
+// Saves the PDF straight into your Downloads folder. Starts the download
+// right now (jsPDF's own save waits a moment, which can clash with the
+// email opening straight after).
 function downloadDocPdf(d) {
   if (!pdfReady()) { toast("Couldn't load the PDF maker - opening the print window instead."); printDoc(d); return false; }
-  buildDocPdf(d).save(docFileName(d));
+  var url = URL.createObjectURL(buildDocPdf(d).output("blob"));
+  var a = document.createElement("a");
+  a.href = url; a.download = docFileName(d); a.rel = "noopener";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
   return true;
 }
 // Opens the PDF in a new tab so you can print it from there.

@@ -90,10 +90,14 @@ function emailDoc(d) {
       (s.accountNumber ? "\nBank: " + [s.accountName, s.sortCode, s.accountNumber].filter(Boolean).join(" / ") + "\nReference: " + d.number + "\n" : "")
       : "Total: " + money(t.gross) + "\nValid until: " + fmtDate(d.due) + "\n") +
     "\nThanks,\n" + (s.yourName || s.businessName || "");
-  var got = downloadDocPdf(d);
-  location.href = "mailto:" + encodeURIComponent(d.client.email || "") + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
-  if (got) toast("PDF saved to your Downloads — attach " + docFileName(d) + " to the email.");
+  var mailto = "mailto:" + encodeURIComponent(d.client.email || "") + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
+  // Download first, then open the email a moment later. Doing both at once
+  // makes Safari drop the email.
+  if (!downloadDocPdf(d)) { openMailto(mailto); return; }
+  toast("PDF saved to your Downloads — attach " + docFileName(d) + " to the email.");
+  setTimeout(function () { openMailto(mailto); }, 500);
 }
+function openMailto(url) { location.href = url; }
 function saveBeforePdf() { if (dataChanged()) { save(); render(); } }
 function printDoc(d) {
   var old = document.title;
