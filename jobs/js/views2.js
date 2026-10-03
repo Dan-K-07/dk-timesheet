@@ -120,6 +120,10 @@ function renderProjects(c) {
     naming + (cards || (state.projectNaming ? "" : '<div class="lr-sub">Group several jobs into a project, then raise one invoice covering all of them.</div>')) + '</div>';
 }
 
+// A date in the history table that you can click and change.
+function histDate(i, f) {
+  return '<input type="date" class="cell-date" data-bind="doc" data-id="' + attr(i.id) + '" data-field="' + f + '" data-rerender="1" value="' + attr(i[f] || "") + '" title="Click to change">';
+}
 /* Every job for the client, with its invoice (if any). Sortable. */
 function renderClientHistory(c) {
   var rows = [];
@@ -156,13 +160,13 @@ function renderClientHistory(c) {
       '<td class="hist-job">' + escapeHtml(j.title || "Untitled job") + (j.projectId && projectById(j.projectId) ? '<div class="lr-sub">' + escapeHtml(projectById(j.projectId).name) + '</div>' : "") + '</td>' +
       '<td class="date-cell">' + (jobStartDate(j) ? fmtDate(jobStartDate(j)) : "—") + '</td>' +
       '<td>' + (i ? '<a class="ref-link" href="#/doc/' + encodeURIComponent(i.id) + '">' + escapeHtml(i.number) + '</a>' : "—") + '</td>' +
-      '<td class="date-cell">' + (i ? fmtDate(i.date) : "—") + '</td>' +
-      '<td class="date-cell">' + (i ? fmtDate(i.due) : "—") + '</td>' +
+      '<td class="date-cell">' + (i ? histDate(i, "date") : "—") + '</td>' +
+      '<td class="date-cell">' + (i ? histDate(i, "due") : "—") + '</td>' +
       '<td class="num">' + (i ? money(docTotals(i).gross) : "—") + '</td>' +
       '<td>' + status + '</td>' +
-      '<td class="date-cell">' + (i && i.paidDate ? fmtDate(i.paidDate) : "—") + '</td></tr>';
+      '<td class="date-cell">' + (i && i.status === "paid" ? histDate(i, "paidDate") : "—") + '</td></tr>';
   }).join("");
-  return '<div class="card log-table-wrap hist-card"><div class="cap-head"><span class="cap-title">Job &amp; invoice history</span></div>' +
+  return '<div class="card log-table-wrap hist-card"><div class="cap-head"><span class="cap-title">Job &amp; invoice history</span><span class="lr-sub">' + icon("pencil") + ' Click any date to edit</span></div>' +
     '<div class="table-scroll"><table class="log-table hist-table"><thead><tr>' + th("ref", "Job ref") + th("job", "Job") + th("jobDate", "Job date") + th("invoice", "Invoice") +
       th("invDate", "Inv date") + th("due", "Due date") + th("amount", "Amount", "num") + th("status", "Status") + th("paid", "Date paid") + '</tr></thead><tbody>' +
     (body || '<tr><td colspan="9" class="list-empty">No jobs for this client yet.</td></tr>') + '</tbody></table></div></div>';
@@ -278,6 +282,14 @@ function renderDocPage(id) {
   }
 
   var back = job ? ["#/jobs/" + encodeURIComponent(job.id), job.title || "Job"] : proj ? ["#/clients/" + encodeURIComponent(proj.clientId), proj.name] : ["#/invoices", "Quotes & Invoices"];
+  // Sent / paid invoices: the dates can still be changed.
+  if (!draft && d.status !== "void") {
+    editor = '<div class="card job-card no-print dates-card"><div class="settings-title">Dates</div><div class="form-grid">' +
+      field(isInv ? "Invoice date" : "Quote date", bound("doc", d.id, "date", d.date, { type: "date", rerender: true })) +
+      field(isInv ? "Due date" : "Valid until", bound("doc", d.id, "due", d.due, { type: "date", rerender: true })) +
+      (d.status === "paid" ? field("Date paid", bound("doc", d.id, "paidDate", d.paidDate, { type: "date", rerender: true })) : "") +
+    '</div><div class="lr-sub">Press Save after changing a date. If you\'ve already sent it, send the client the updated PDF.</div></div>';
+  }
   return '<div class="page-head no-print"><a class="back-link" href="' + back[0] + '">← ' + escapeHtml(back[1]) + '</a>' +
       '<h1 class="page-title">' + (isInv ? "Invoice " : "Quote ") + escapeHtml(d.number) + '</h1>' + docStatusTag(d) +
       (d.status === "paid" ? '<span class="lr-sub">Paid ' + fmtDate(d.paidDate) + '</span>' : "") + '</div>' +

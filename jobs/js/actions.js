@@ -63,8 +63,10 @@ function createDoc(jobs, kind, project) {
   if (!client) { toast("Choose a client first."); return; }
   var s = state.data.settings, multi = jobs.length > 1 || !!project;
   var terms = (!multi && num(j.terms)) || num(client.terms) || num(s.paymentTerms) || 30;
-  var date = todayIso();
   var starts = jobs.map(jobStartDate).filter(Boolean).sort(), ends = jobs.map(jobEndDate).filter(Boolean).sort();
+  // Invoices are dated from the job (its last day; a project uses its latest
+  // job). Quotes, and jobs with no date, use today.
+  var date = kind === "invoice" && ends.length ? ends[ends.length - 1] : todayIso();
   var span = !starts.length ? "" : starts[0] === ends[ends.length - 1] ? fmtDate(starts[0]) : fmtDate(starts[0]) + " → " + fmtDate(ends[ends.length - 1]);
   var d = {
     id: uid("v"), kind: kind, number: nextDocNumber(kind), status: "draft",
@@ -197,6 +199,12 @@ function onBoundInput(el, final) {
   if (!target) return;
   var f = el.getAttribute("data-field"), before = target[f];
   target[f] = readBoundValue(el);
+  // Changing an invoice/quote date moves the due date with it, unless the due
+  // date had been set by hand.
+  if (f === "date" && el.getAttribute("data-bind") === "doc" && target.date && before) {
+    var gap = target.kind === "invoice" ? num(target.termsDays) || num(state.data.settings.paymentTerms) || 30 : num(state.data.settings.quoteValidDays) || 30;
+    if (!target.due || target.due === addDays(before, gap)) target.due = addDays(target.date, gap);
+  }
   // Moving a start date takes the end date with it (unless it's a longer run that still fits).
   if (f === "start" && el.getAttribute("data-bind") === "job-dates" && (!target.end || target.end < target.start || target.end === before)) {
     target.end = target.start;

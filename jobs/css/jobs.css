@@ -284,7 +284,15 @@ textarea.field-input { width: 100%; resize: vertical; line-height: 1.45; font-fa
 .sort-ind { font-size: 9px; opacity: 0.7; }
 .hist-table td, .hist-table th { white-space: nowrap; padding: 10px 9px; }
 .hist-table td { font-size: 13px; }
-.hist-table td.hist-job { white-space: normal; min-width: 160px; font-weight: 600; }
+.hist-table td.hist-job { white-space: normal; min-width: 130px; font-weight: 600; }
+.cap-head .lr-sub { display: inline-flex; align-items: center; gap: 4px; }
+.cap-head .lr-sub .ico { width: 13px; height: 13px; }
+.cell-date { font: inherit; font-size: 13px; color: var(--ink); background: transparent; border: 1px solid transparent; border-radius: 7px; padding: 3px 4px; cursor: pointer; min-width: 0; }
+.cell-date { width: 8.4em; }
+.cell-date::-webkit-calendar-picker-indicator { display: none; }
+.cell-date:hover { border-color: var(--line); background: var(--panel-2); }
+.cell-date:focus { outline: none; border-color: var(--accent); background: var(--panel); }
+.dates-card .form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .ref-link { color: var(--accent); font-weight: 700; text-decoration: none; white-space: nowrap; }
 .ref-link:hover { text-decoration: underline; }
 .fin-stats { grid-template-columns: repeat(2, minmax(0, 260px)); }
