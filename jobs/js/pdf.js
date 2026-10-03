@@ -8,7 +8,7 @@
    ===================================================================== */
 
 var PDF_INK = [29, 32, 51], PDF_DIM = [108, 114, 144], PDF_LINE = [226, 229, 238],
-    PDF_SOFT = [246, 247, 252], PDF_ACCENT = [76, 95, 213];
+    PDF_SOFT = [247, 248, 251], PDF_ACCENT = [76, 61, 214];
 
 function pdfReady() { return !!(window.jspdf && window.jspdf.jsPDF); }
 
@@ -28,182 +28,188 @@ function docFileName(d) {
 function buildDocPdf(d) {
   var s = state.data.settings, isInv = d.kind === "invoice", t = docTotals(d);
   var pdf = new window.jspdf.jsPDF({ unit: "mm", format: "a4" });
-  var W = 210, H = 297, M = 18, R = W - M, CW = W - 2 * M;
+  var W = 210, H = 297, M = 16, R = W - M, CW = W - 2 * M;
+  var TOP2 = M + 8;            // where content starts on page 2 onwards (under the small header)
+  var BOTTOM = H - 18;         // keep clear of the page number
   var y = M;
 
   function font(size, style, colour) {
     pdf.setFont("helvetica", style || "normal"); pdf.setFontSize(size); pdf.setTextColor.apply(pdf, colour || PDF_INK);
   }
+  // Wrapping is measured in the current font, so set the font first.
   function lines(text, width) { return pdf.splitTextToSize(pdfText(text), width); }
-  function lh(size) { return size * 0.42; } // line height in mm for a font size
-  function box(x, top, w, h) {
-    pdf.setDrawColor.apply(pdf, PDF_LINE); pdf.setFillColor.apply(pdf, PDF_SOFT); pdf.setLineWidth(0.3);
-    pdf.roundedRect(x, top, w, h, 2.5, 2.5, "FD");
+  function rbox(x, top, w, h, fill) {
+    pdf.setDrawColor.apply(pdf, PDF_LINE); pdf.setLineWidth(0.3);
+    if (fill) pdf.setFillColor.apply(pdf, PDF_SOFT);
+    pdf.roundedRect(x, top, w, h, 3, 3, fill ? "FD" : "S");
   }
-  // Small capitals labels. Letter spacing only on left-aligned ones, as it
-  // pushes right-aligned text past the edge.
-  function label(text, x, top, align) {
-    font(7.5, "bold", PDF_DIM);
-    pdf.text(pdfText(text).toUpperCase(), x, top, align === "right" ? { align: "right" } : { charSpace: 0.3 });
-  }
+  function heading(text, x, top, size) { font(size || 8.5, "bold"); pdf.text(pdfText(text), x, top, { charSpace: 0.15 }); }
+  function newPage() { pdf.addPage(); y = TOP2; }
 
-  /* ---- Top: who it's from (left) and what it is (right) ---- */
-  var leftY = y;
+  /* ---- Top: logo, From details (left) and INVOICE with dates (right) ---- */
+  var textX = M, logoH = 0;
   if (s.logo) {
     try {
-      var p = pdf.getImageProperties(s.logo), lw = 38, lhgt = lw * p.height / p.width;
-      if (lhgt > 18) { lhgt = 18; lw = lhgt * p.width / p.height; }
-      pdf.addImage(s.logo, "PNG", M, leftY, lw, lhgt); leftY += lhgt + 5;
+      var p = pdf.getImageProperties(s.logo), lw = 26, lhgt = lw * p.height / p.width;
+      if (lhgt > 26) { lhgt = 26; lw = lhgt * p.width / p.height; }
+      pdf.addImage(s.logo, "PNG", M, y, lw, lhgt); textX = M + lw + 7; logoH = lhgt;
     } catch (e) {}
   }
-  font(14, "bold"); pdf.text(lines(s.businessName || s.yourName || "Your business name", 95), M, leftY + 4); leftY += 9;
+  var leftY = y + 3.5;
+  heading("From", textX, leftY); leftY += 6;
+  font(12.5, "bold"); pdf.text(lines(s.businessName || s.yourName || "Your business name", 90), textX, leftY); leftY += 6;
   var fromLines = [s.yourName && s.businessName ? s.yourName : ""].concat(String(s.address || "").split("\n"), [s.phone, s.email, s.website])
     .map(function (x) { return (x || "").trim(); }).filter(Boolean);
-  font(8.5, "normal", PDF_DIM);
-  fromLines.forEach(function (l) { pdf.text(lines(l, 95), M, leftY); leftY += lh(8.5) + 0.6; });
+  font(9, "normal", PDF_DIM);
+  fromLines.forEach(function (l) { pdf.text(lines(l, 90), textX, leftY); leftY += 4.4; });
 
-  var rightY = y + 7;
-  font(24, "bold", PDF_ACCENT); pdf.text(isInv ? "INVOICE" : "QUOTATION", R, rightY, { align: "right" });
-  rightY += 6.5;
-  font(10, "bold"); pdf.text(pdfText(d.number), R, rightY, { align: "right" }); rightY += 7;
-  var meta = [[isInv ? "Invoice date" : "Quote date", fmtDate(d.date)], [isInv ? "Due date" : "Valid until", fmtDate(d.due)]];
-  if (d.client.supplierRef) meta.push(["Supplier ref", d.client.supplierRef]);
-  if (s.vatRegistered && s.vatNumber) meta.push(["VAT no.", s.vatNumber]);
+  var rightY = y + 6;
+  font(21, "bold"); pdf.text(isInv ? "INVOICE" : "QUOTE", R, rightY, { align: "right" }); rightY += 4.5;
+  font(9.5, "bold"); pdf.text(pdfText(d.number), R, rightY, { align: "right" }); rightY += 7.5;
+  var meta = [[isInv ? "Invoice Date" : "Quote Date", fmtDate(d.date)], [isInv ? "Due Date" : "Valid Until", fmtDate(d.due)]];
+  if (d.client.supplierRef) meta.push(["Supplier Ref", d.client.supplierRef]);
+  if (s.vatRegistered && s.vatNumber) meta.push(["VAT No.", s.vatNumber]);
   meta.forEach(function (m) {
-    label(m[0], R, rightY, "right"); rightY += 4;
-    font(9.5, "bold"); pdf.text(pdfText(m[1]), R, rightY, { align: "right" }); rightY += 5.5;
+    font(8.5, "bold"); pdf.text(pdfText(m[0]), R, rightY, { align: "right" }); rightY += 5;
+    font(10.5, "bold"); pdf.text(pdfText(m[1]), R, rightY, { align: "right" }); rightY += 6.5;
   });
-  y = Math.max(leftY, rightY) + 6;
+  y = Math.max(leftY, rightY - 2, y + logoH) + 5;
 
-  /* ---- Bill to / Job details boxes ---- */
-  var billLines = [d.client.contact, d.client.email].concat(String(d.client.address || "").split("\n")).map(function (x) { return (x || "").trim(); }).filter(Boolean);
-  var jobLines = [d.venue, d.jobDates, d.po ? "PO: " + d.po : ""].filter(Boolean);
-  var hasJob = !!(d.title || jobLines.length);
-  var gap = 6, bw = hasJob ? (CW - gap) / 2 : CW, pad = 5, inner = bw - 2 * pad;
-  function boxBody(title, main, rest) {
-    var out = [{ t: title, k: "label" }];
-    if (main) lines(main, inner).forEach(function (l) { out.push({ t: l, k: "main" }); });
-    rest.forEach(function (r) { lines(r, inner).forEach(function (l) { out.push({ t: l, k: "rest" }); }); });
+  /* ---- Bill To / Job Details boxes ---- */
+  var gap = 6, hasJob = !!(d.title || d.venue || d.jobDates || d.po);
+  var bw = hasJob ? (CW - gap) / 2 : CW, pad = 5, inner = bw - 2 * pad;
+  // Each box is a list of rows: [text, size, style, colour, gapAfter]
+  function rows(list) {
+    var out = [];
+    list.forEach(function (r) {
+      if (!r[0]) return;
+      font(r[1], r[2]);
+      lines(r[0], inner).forEach(function (l, i, all) { out.push([l, r[1], r[2], r[3], i === all.length - 1 ? r[4] : r[1] * 0.42]); });
+    });
     return out;
   }
-  function boxHeight(rows) { return 2 * pad + rows.reduce(function (h, r) { return h + (r.k === "label" ? 5 : r.k === "main" ? 5 : lh(9) + 0.8); }, 0); }
-  function drawBox(rows, x, top, h) {
-    box(x, top, bw, h);
-    var yy = top + pad + 2.5;
-    rows.forEach(function (r) {
-      if (r.k === "label") { label(r.t, x + pad, yy); yy += 5; }
-      else if (r.k === "main") { font(10.5, "bold"); pdf.text(r.t, x + pad, yy); yy += 5; }
-      else { font(9, "normal", PDF_DIM); pdf.text(r.t, x + pad, yy); yy += lh(9) + 0.8; }
-    });
+  var bill = rows([[isInv ? "Bill To" : "Prepared For", 8.5, "bold", PDF_INK, 7], [d.client.name, 12, "bold", PDF_INK, 4.5],
+    [d.client.email, 8.5, "bold", PDF_DIM, 6]].concat(String(d.client.address || "").split("\n").map(function (a) { return [a.trim(), 9, "normal", PDF_INK, 4.4]; }))
+    .concat(d.client.contact ? [["Attn: " + d.client.contact, 9, "normal", PDF_DIM, 4.4]] : []));
+  var job = hasJob ? rows([["Job Details", 8.5, "bold", PDF_INK, 7], [d.title, 9.5, "bold", PDF_INK, 4.8], [d.venue, 8, "bold", PDF_DIM, 6],
+    [d.jobDates, 9, "bold", PDF_DIM, 5], [d.po ? "PO: " + d.po : "", 9, "bold", PDF_DIM, 5]]) : [];
+  function rowsH(list) { return list.reduce(function (h, r) { return h + r[4]; }, 0); }
+  var bh = Math.max(rowsH(bill), rowsH(job)) + 2 * pad + 1;
+  function drawRows(list, x) {
+    var yy = y + pad + 3.5;
+    list.forEach(function (r) { font(r[1], r[2], r[3]); pdf.text(r[0], x + pad, yy); yy += r[4]; });
   }
-  var billRows = boxBody(isInv ? "Bill to" : "Prepared for", d.client.name, billLines);
-  var jobRows = hasJob ? boxBody("Job details", d.title, jobLines) : null;
-  var bh = Math.max(boxHeight(billRows), jobRows ? boxHeight(jobRows) : 0);
-  drawBox(billRows, M, y, bh);
-  if (jobRows) drawBox(jobRows, M + bw + gap, y, bh);
-  y += bh + 7;
+  rbox(M, y, bw, bh); drawRows(bill, M);
+  if (hasJob) { rbox(M + bw + gap, y, bw, bh); drawRows(job, M + bw + gap); }
+  y += bh + 9;
 
   if (d.summary) {
     font(9.5, "normal");
-    lines(d.summary, CW).forEach(function (l) { pdf.text(l, M, y); y += lh(9.5) + 1; });
+    lines(d.summary, CW).forEach(function (l) { pdf.text(l, M, y); y += 4.6; });
     y += 4;
   }
 
-  /* ---- Line items ---- */
-  var cQty = R - 62, cPrice = R - 30, cAmt = R - 3, descW = cQty - M - 18;
+  /* ---- Line Items: one rounded box per page, header row shaded ---- */
+  var cQty = R - 60, cPrice = R - 30, cAmt = R - 4, descW = cQty - M - 22;
+  heading("Line Items", M, y); y += 4;
+  var segTop;
   function tableHead() {
-    pdf.setFillColor.apply(pdf, PDF_SOFT); pdf.setDrawColor.apply(pdf, PDF_LINE);
-    pdf.roundedRect(M, y, CW, 8, 1.5, 1.5, "FD");
-    label("Description", M + 3, y + 5.2); label("Qty", cQty, y + 5.2, "right");
-    label("Unit price", cPrice, y + 5.2, "right"); label("Amount", cAmt, y + 5.2, "right");
-    y += 8;
+    segTop = y;
+    pdf.setFillColor.apply(pdf, PDF_SOFT);
+    pdf.roundedRect(M, y, CW, 10, 3, 3, "F"); pdf.rect(M, y + 5, CW, 5, "F"); // rounded top corners only
+    font(8.5, "bold", PDF_DIM);
+    pdf.text("Description", M + 4, y + 6.5); pdf.text("Qty", cQty, y + 6.5, { align: "right" });
+    pdf.text("Unit Price", cPrice, y + 6.5, { align: "right" }); pdf.text("Amount", cAmt, y + 6.5, { align: "right" });
+    y += 10;
   }
-  // Start a new page if the next bit won't fit. The table heading is only
-  // repeated while we're still in the line items.
-  var inTable = true;
-  function room(need) {
-    if (y + need <= H - M - 10) return;
-    pdf.addPage(); y = M;
-    if (inTable) tableHead();
-  }
+  function closeTable() { pdf.setDrawColor.apply(pdf, PDF_LINE); pdf.setLineWidth(0.3); pdf.roundedRect(M, segTop, CW, y - segTop, 3, 3, "S"); }
   tableHead();
-  d.items.forEach(function (it) {
-    font(9.5, "normal"); // wrapping is measured in the current font
-    var desc = lines(it.desc || "", descW), rh = 9 + (Math.max(1, desc.length) - 1) * 4.2; // 4.2mm = 1.25 line spacing
-    room(rh);
-    var ty = y + 5.5;
-    font(9.5, "normal"); pdf.text(desc, M + 3, ty, { lineHeightFactor: 1.25 });
+  d.items.forEach(function (it, i) {
+    font(9.5, "bold");
+    var desc = lines(it.desc || "", descW), rh = 11 + (Math.max(1, desc.length) - 1) * 4.4;
+    if (y + rh > BOTTOM) { closeTable(); newPage(); tableHead(); }
+    else if (i > 0) { pdf.setDrawColor.apply(pdf, PDF_LINE); pdf.setLineWidth(0.25); pdf.line(M, y, R, y); }
+    var ty = y + 6.8;
+    font(9.5, "bold");
+    pdf.text(desc, M + 4, ty, { lineHeightFactor: 1.3 });
     pdf.text(pdfText(String(num(it.qty))), cQty, ty, { align: "right" });
     pdf.text(pdfMoney(it.price), cPrice, ty, { align: "right" });
-    font(9.5, "bold"); pdf.text(pdfMoney(lineNet(it)), cAmt, ty, { align: "right" });
+    pdf.text(pdfMoney(lineNet(it)), cAmt, ty, { align: "right" });
     y += rh;
-    pdf.setDrawColor.apply(pdf, PDF_LINE); pdf.setLineWidth(0.3); pdf.line(M, y, R, y);
   });
+  closeTable();
 
   /* ---- Totals ---- */
-  inTable = false;
-  room(32);
-  y += 7;
-  var tl = R - 75;
-  if (d.vatRate) {
-    font(9.5, "normal", PDF_DIM); pdf.text("Subtotal", tl, y); font(9.5, "normal"); pdf.text(pdfMoney(t.net), cAmt, y, { align: "right" }); y += 6;
-    font(9.5, "normal", PDF_DIM); pdf.text("VAT @ " + num(d.vatRate) + "%", tl, y); font(9.5, "normal"); pdf.text(pdfMoney(t.vat), cAmt, y, { align: "right" }); y += 4;
-  }
-  pdf.setDrawColor.apply(pdf, PDF_INK); pdf.setLineWidth(0.6); pdf.line(tl, y, R, y);
+  if (y + 34 > BOTTOM) newPage();
   y += 8;
-  font(11, "bold"); pdf.text(isInv ? "Total due" : "Total", tl, y);
-  font(18, "bold", PDF_ACCENT); pdf.text(pdfMoney(t.gross), cAmt, y + 0.5, { align: "right" });
+  var tl = R - 82;
+  pdf.setDrawColor.apply(pdf, PDF_LINE); pdf.setLineWidth(0.3); pdf.line(tl, y, R, y);
+  function totalRow(lbl, val) {
+    y += 7.5; font(9.5, "bold", PDF_DIM); pdf.text(lbl, tl, y); font(9.5, "bold"); pdf.text(val, R, y, { align: "right" }); y += 3.5;
+  }
+  totalRow("Subtotal", pdfMoney(t.net));
+  if (d.vatRate) totalRow("VAT @ " + num(d.vatRate) + "%", pdfMoney(t.vat));
+  pdf.setDrawColor.apply(pdf, PDF_INK); pdf.setLineWidth(0.5); pdf.line(tl, y + 1, R, y + 1);
+  y += 11;
+  font(9.5, "bold"); pdf.text(isInv ? "Total Payable" : "Quote Total", tl, y - 1);
+  font(22, "bold", PDF_ACCENT); pdf.text(pdfMoney(t.gross), R, y + 2, { align: "right" });
   y += 12;
 
-  /* ---- Payment details ---- */
+  /* ---- Payment Details ---- */
   if ((isInv || s.showBankOnQuotes) && (s.accountNumber || s.sortCode)) {
-    var cols = [["Account name", s.accountName], ["Sort code", s.sortCode], ["Account number", s.accountNumber], ["Reference", d.number]]
+    var cols = [["Account Name", s.accountName], ["Account Number", s.accountNumber], ["Sort Code", s.sortCode], ["Reference", d.number]]
       .filter(function (c) { return c[1]; });
-    var colW = (CW - 10) / cols.length;
-    room(26);
-    box(M, y, CW, s.bankName ? 24 : 20);
-    label("Payment details" + (s.bankName ? " · " + s.bankName : ""), M + 5, y + 6.5);
+    var ph = s.bankName ? 27 : 23, colW = (CW - 10) / cols.length;
+    if (y + ph > BOTTOM) newPage();
+    rbox(M, y, CW, ph, true);
+    heading("Payment Details" + (s.bankName ? " · " + s.bankName : ""), M + 5, y + 8);
     cols.forEach(function (c, i) {
       var x = M + 5 + i * colW;
-      font(7.5, "normal", PDF_DIM); pdf.text(pdfText(c[0]), x, y + 12.5);
-      font(10, "bold"); pdf.text(lines(c[1], colW - 3)[0] || "", x, y + 17.5);
+      font(8.5, "bold"); pdf.text(pdfText(c[0]), x, y + 14.5, { charSpace: 0.15 });
+      font(8.5, "bold"); pdf.text(lines(c[1], colW - 3)[0] || "", x, y + 19);
     });
-    y += (s.bankName ? 24 : 20) + 7;
+    y += ph + 8;
   }
 
-  /* ---- Terms ---- */
+  /* ---- Terms: shaded box that carries on to the next page if needed ---- */
   var terms = String(d.terms || "").replace(/\{days\}/g, String(d.termsDays || s.paymentTerms)).trim();
   if (terms) {
-    // Starts straight under the payment details and runs on to the next
-    // page line by line. Short numbered lines ("1. Payment Terms") are
-    // treated as headings.
-    room(14);
-    label(isInv ? "Terms" : "Terms & conditions", M, y); y += 5.5;
-    var step = lh(8.5) + 1.1;
+    // Work out where every line goes first, so each page's box can be
+    // drawn behind its text.
+    var ops = [], segs = [], page = pdf.getNumberOfPages(), ty2 = y, seg, step = 4.2, tpad = 5, BODY = [70, 76, 100];
+    function startSeg() { seg = { page: page, top: ty2 }; segs.push(seg); ty2 += tpad + 3; }
+    var lastY = ty2;
+    function fit(h) { if (ty2 + h > BOTTOM - tpad) { seg.bottom = lastY + tpad; page++; ty2 = TOP2; startSeg(); } }
+    if (ty2 + 30 > BOTTOM) { page++; ty2 = TOP2; }
+    startSeg();
+    ops.push({ page: page, y: ty2, t: isInv ? "Payment Terms & Conditions" : "Terms & Conditions", h: "title" }); ty2 += 7;
     terms.split("\n").forEach(function (para) {
       para = para.trim();
-      if (!para) { y += step * 0.6; return; }
-      var heading = para.length <= 60 && /^(\d+[.)]|[A-Z][A-Za-z &/-]{2,40}:?$)/.test(para) && !/[.,;]$/.test(para);
-      font(8.5, heading ? "bold" : "normal", heading ? PDF_INK : PDF_DIM);
-      if (heading) { room(step * 3); y += 1; } // keep a heading with its first line
-      lines(para, CW).forEach(function (l) {
-        room(step);
-        font(8.5, heading ? "bold" : "normal", heading ? PDF_INK : PDF_DIM);
-        pdf.text(l, M, y); y += step;
-      });
-      if (heading) y += 0.4;
+      if (!para) { ty2 += step * 0.7; return; }
+      var head = para.length <= 60 && /^(\d+[.)]|[A-Z][A-Za-z &/-]{2,40}:?$)/.test(para) && !/[.,;]$/.test(para);
+      font(8.5, head ? "bold" : "normal");
+      if (head) fit(step * 3);
+      lines(para, CW - 2 * tpad).forEach(function (l) { fit(step); ops.push({ page: page, y: ty2, t: l, h: head ? "head" : "" }); lastY = ty2; ty2 += step; });
+    });
+    seg.bottom = lastY + tpad;
+    while (pdf.getNumberOfPages() < page) pdf.addPage();
+    segs.forEach(function (sg) { pdf.setPage(sg.page); rbox(M, sg.top, CW, sg.bottom - sg.top, true); });
+    ops.forEach(function (o) {
+      pdf.setPage(o.page);
+      if (o.h === "title") heading(o.t, M + tpad, o.y, 9.5);
+      else { font(8.5, o.h ? "bold" : "normal", o.h ? PDF_INK : BODY); pdf.text(o.t, M + tpad, o.y); }
     });
   }
 
-  /* ---- Footer on every page ---- */
-  var pages = pdf.getNumberOfPages();
+  /* ---- Page numbers, and a small header on page 2 onwards ---- */
+  var pages = pdf.getNumberOfPages(), name = docFileName(d).replace(/\.pdf$/, "");
   for (var i = 1; i <= pages; i++) {
     pdf.setPage(i);
-    font(7.5, "normal", PDF_DIM);
-    pdf.text(pdfText([s.businessName || s.yourName, d.number].filter(Boolean).join(" · ")), M, H - 9);
+    font(8, "normal", PDF_DIM);
     if (pages > 1) pdf.text("Page " + i + " of " + pages, R, H - 9, { align: "right" });
+    if (i > 1) pdf.text(pdfText(name + (s.businessName || s.yourName ? " · " + (s.businessName || s.yourName) : "")), M, M - 4);
   }
-  pdf.setProperties({ title: docFileName(d).replace(/\.pdf$/, ""), author: pdfText(s.businessName || s.yourName || ""), creator: "DK Jobs" });
+  pdf.setProperties({ title: name, author: pdfText(s.businessName || s.yourName || ""), creator: "DK Jobs" });
   return pdf;
 }
 
