@@ -33,7 +33,9 @@ var ICONS = {
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   logout: '<path d="M14 4h5v16h-5"/><path d="M10 8l-4 4 4 4M6 12h10"/>',
   menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
-  pound: '<path d="M16 6.5A4 4 0 0 0 9 8.5V18M6 18h11M6 12.5h7"/>'
+  pound: '<path d="M16 6.5A4 4 0 0 0 9 8.5V18M6 18h11M6 12.5h7"/>',
+  save: '<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3"/><rect x="8" y="13" width="8" height="5" rx="1"/>',
+  warn: '<path d="M12 3.5L2.5 20h19z"/><path d="M12 10v4.5"/><circle cx="12" cy="17.3" r="0.6" fill="currentColor"/>'
 };
 function icon(name, cls) {
   return '<svg class="ico' + (cls ? " " + cls : "") + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || "") + '</svg>';
@@ -47,16 +49,32 @@ function readRoute() {
   if (!TABS.some(function (t) { return t.key === tab; })) tab = "home";
   return { tab: tab, id: parts[1] ? decodeURIComponent(parts[1]) : null };
 }
-function go(tab, id) {
-  var h = "#/" + tab + (id ? "/" + encodeURIComponent(id) : "");
-  if (location.hash === h) { state.route = readRoute(); render(); }
-  else location.hash = h;
+function go(tab, id) { guardLeave(function () { goNow(tab, id); }); }
+// Move page without asking (only once any unsaved changes are dealt with).
+function goNow(tab, id) { navTo("#/" + tab + (id ? "/" + encodeURIComponent(id) : "")); }
+var navAllowed = false, currentHash = location.hash;
+function navTo(h) {
+  if (location.hash === h) { state.route = readRoute(); render(); return; }
+  navAllowed = true;
+  location.hash = h;
 }
 window.addEventListener("hashchange", function () {
+  // Browser Back/Forward with unsaved changes: stay put and ask first.
+  if (!navAllowed && hasChanges()) {
+    var wanted = location.hash;
+    history.replaceState(null, "", currentHash || "#/home");
+    showLeaveModal(function () { navTo(wanted); });
+    return;
+  }
+  navAllowed = false;
+  currentHash = location.hash;
   state.route = readRoute();
+  // A new job/client you never typed into is dropped when you move on.
+  if (state.newRecord && !(state.route.tab === state.newRecord.tab && state.route.id === state.newRecord.id)) discardChanges();
   state.navOpen = false;
   state.expAdding = state.mileAdding = state.clientAdding = state.productAdding = false;
   state.expEditingId = state.mileEditingId = state.clientEditingId = state.productEditingId = null;
+  state.formKey = null;
   var pending = state.pendingForm; state.pendingForm = null;
   if (pending === "expense") state.expAdding = true;
   if (pending === "mileage") state.mileAdding = true;
@@ -65,6 +83,91 @@ window.addEventListener("hashchange", function () {
   if (pending === "expense") focusForm("expAmount");
   if (pending === "mileage") { updateMileagePreview(); focusForm("mMiles"); }
 });
+// Links (sidebar, back links, Open Timesheet) ask first if there are unsaved changes.
+document.addEventListener("click", function (ev) {
+  var a = ev.target.closest("a[href]");
+  if (!a || a.target === "_blank" || a.hasAttribute("download") || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.button) return;
+  var href = a.getAttribute("href");
+  if (/^(mailto:|tel:|https?:)/.test(href) || !hasChanges()) return;
+  ev.preventDefault(); ev.stopPropagation();
+  showLeaveModal(function () { if (href.charAt(0) === "#") navTo(href); else location.href = a.href; });
+}, true);
+// Closing the tab or reloading: the browser shows its own warning.
+window.addEventListener("beforeunload", function (ev) {
+  if (state.authed && hasChanges()) { ev.preventDefault(); ev.returnValue = ""; }
+});
+
+/* ---------- Unsaved changes: popup and save bar ---------- */
+// Runs proceed() straight away, or after asking if there are unsaved changes.
+function guardLeave(proceed) {
+  if (hasChanges()) showLeaveModal(proceed); else proceed();
+}
+function showLeaveModal(proceed) {
+  showModal({
+    icon: "warn", title: "Unsaved Changes", text: "You have unsaved changes. What would you like to do?",
+    buttons: [
+      { label: icon("save") + " Save &amp; Leave", cls: "modal-primary", run: function () {
+        return saveAll().then(function (ok) { if (ok) proceed(); return ok; });
+      } },
+      { label: "Leave Without Saving", cls: "modal-danger", run: function () { discardChanges(); proceed(); } },
+      { label: "Cancel - Keep Editing", cls: "modal-neutral" }
+    ]
+  });
+}
+// A small popup. Each button's run() can return false (or a promise of
+// false) to keep the popup open.
+function showModal(opts) {
+  var host = document.getElementById("modal");
+  host.innerHTML = '<div class="modal-scrim"><div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">' +
+    (opts.icon ? '<div class="modal-icon ' + opts.icon + '">' + icon(opts.icon) + '</div>' : "") +
+    '<h2 class="modal-title" id="modalTitle">' + escapeHtml(opts.title) + '</h2>' +
+    (opts.text ? '<p class="modal-text">' + escapeHtml(opts.text) + '</p>' : "") +
+    (opts.body || "") +
+    '<div class="modal-btns">' + opts.buttons.map(function (b, i) {
+      return '<button type="button" class="modal-btn ' + (b.cls || "modal-neutral") + '" data-modal-btn="' + i + '">' + b.label + '</button>';
+    }).join("") + '</div></div></div>';
+  var busy = false;
+  host.querySelectorAll("[data-modal-btn]").forEach(function (el) {
+    el.addEventListener("click", function () {
+      if (busy) return;
+      var b = opts.buttons[parseInt(el.getAttribute("data-modal-btn"), 10)];
+      busy = true;
+      Promise.resolve(b.run ? b.run() : true).then(function (ok) { busy = false; if (ok !== false) closeModal(); });
+    });
+  });
+  host.querySelector(".modal-scrim").addEventListener("click", function (ev) { if (ev.target === ev.currentTarget) closeModal(); });
+  var first = host.querySelector(opts.focus || ".modal-btn"); if (first) first.focus();
+}
+function closeModal() { document.getElementById("modal").innerHTML = ""; }
+function modalOpen() { return !!document.querySelector("#modal .modal-scrim"); }
+
+// Pages where you type things in get a Save bar along the bottom.
+function editablePage() {
+  var r = state.route;
+  if (r.tab === "jobs" || r.tab === "clients") return !!r.id;
+  if (r.tab === "doc") { var d = byId(state.data.invoices, r.id); return !!d && d.status === "draft"; }
+  return r.tab === "prices" || r.tab === "settings";
+}
+function renderSaveBar() {
+  return '<div class="save-bar" id="saveBar"><div class="save-bar-inner">' +
+    '<span class="save-msg"><span class="save-dot"></span><span id="saveMsg"></span></span>' +
+    '<div class="btn-row">' + btn("Discard", "discard", { cls: "btn-ghost" }) + btn(icon("save") + " Save", "save", { cls: "btn-primary" }) + '</div>' +
+  '</div></div>';
+}
+// Light-touch refresh of the bar while you type (no full redraw).
+var saveBarFrame = 0;
+function updateSaveBar() {
+  if (!saveBarFrame) saveBarFrame = requestAnimationFrame(function () { saveBarFrame = 0; paintSaveBar(); });
+}
+function paintSaveBar() {
+  var bar = document.getElementById("saveBar");
+  if (!bar) return;
+  var dirty = hasChanges();
+  bar.classList.toggle("dirty", dirty);
+  bar.classList.toggle("hidden", !dirty && !editablePage());
+  document.getElementById("saveMsg").textContent = dirty ? "Unsaved changes" : "All changes saved";
+  bar.querySelectorAll("button").forEach(function (b) { b.disabled = !dirty; });
+}
 
 /* ---------- Small builders ---------- */
 function attr(s) { return escapeHtml(s === undefined || s === null ? "" : s); }
@@ -158,7 +261,9 @@ function render() {
   }
   app.innerHTML = '<div class="shell' + (state.navOpen ? " nav-open" : "") + '">' + renderSidebar() +
     '<div class="nav-scrim" data-action="nav-close"></div>' +
-    '<main class="main">' + renderMobileBar() + '<div class="main-inner">' + body + '</div></main></div>';
+    '<main class="main">' + renderMobileBar() + '<div class="main-inner">' + body + '</div>' + renderSaveBar() + '</main></div>';
+  rememberForm();
+  paintSaveBar();
 }
 
 function renderGate() {
@@ -437,7 +542,10 @@ function renderJobPage(id) {
     '<div class="card side-card"><div class="side-title">Client</div>' +
       (client ? '<div class="lr-title">' + escapeHtml(client.name) + '</div><div class="lr-sub pre">' + escapeHtml([client.contact, client.email, client.phone, client.address].filter(Boolean).join("\n")) + '</div>' +
         '<div class="btn-row side-btns"><a class="btn btn-sm" href="#/clients/' + encodeURIComponent(client.id) + '">Edit client</a></div>'
-        : '<div class="lr-sub">No client chosen.</div><div class="btn-row side-btns">' + btn("Add a client", "new-client", { cls: "btn-sm" }) + '</div>') +
+        : (state.data.clients.length ? '<div class="lr-sub">Pick one of your clients, or add a new one.</div>' +
+            bound("job", j.id, "clientId", j.clientId, { type: "select", options: clientOptions(true), rerender: true, cls: "side-select" })
+          : '<div class="lr-sub">No clients yet.</div>') +
+          '<div class="btn-row side-btns">' + btn("＋ New client", "job-new-client", { id: j.id, cls: "btn-sm" }) + '</div>') +
     '</div>' +
     '<div class="card side-card"><div class="side-head"><span class="side-title">Mileage</span>' + btn("＋ Add", "new-mileage", { id: j.id, cls: "btn-sm" }) + '</div>' +
       (miles.length ? miles.map(function (m) {
