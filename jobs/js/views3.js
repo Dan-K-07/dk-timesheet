@@ -5,75 +5,83 @@
    ===================================================================== */
 
 /* ---------- Expenses ---------- */
-function renderExpenseForm(e) {
-  e = e || { date: todayIso(), category: "Other", jobId: state.expFromJob || "", billable: false };
-  var cats = state.data.settings.expenseCategories.map(function (c) { return c.name; });
-  if (e.category && cats.indexOf(e.category) === -1) cats.push(e.category);
-  var opt = function (list, val) { return list.map(function (o) { var v = typeof o === "object" ? o.value : o, l = typeof o === "object" ? o.label : o; return '<option value="' + attr(v) + '"' + (String(v) === String(val || "") ? " selected" : "") + '>' + escapeHtml(l) + '</option>'; }).join(""); };
-  return '<form class="card entry-form" id="expenseForm" data-id="' + attr(e.id || "") + '">' +
-    '<div class="settings-title">' + (e.id ? "Edit expense" : "New expense") + '</div>' +
-    '<div class="form-grid">' +
-      field("Date", '<input type="date" class="field-input" id="expDate" value="' + attr(e.date) + '" required>') +
-      field("Supplier / shop", '<input class="field-input" id="expMerchant" value="' + attr(e.merchant) + '" placeholder="e.g. Screwfix" list="merchantList">') +
-      field("Category", '<select class="field-input" id="expCategory">' + opt(cats, e.category) + '</select>') +
-      field("Amount paid (£)", '<input class="field-input" id="expAmount" inputmode="decimal" value="' + attr(e.amount) + '" placeholder="0.00" required>') +
-      field("What was it for", '<input class="field-input" id="expDesc" value="' + attr(e.desc) + '" placeholder="e.g. Gaffer tape and cable ties">', "span-2") +
-      (vatOn() ? field("VAT included (£)", '<input class="field-input" id="expVat" inputmode="decimal" value="' + attr(e.vat) + '" placeholder="0.00">') : "") +
-      field("Job", '<select class="field-input" id="expJob">' + opt(jobOptions(), e.jobId) + '</select>', vatOn() ? "" : "span-2") +
-      field("Receipt" + (e.receiptPath || e.receiptUrl ? " (one attached — choose a file to replace it)" : ""), '<input type="file" class="field-input" id="expReceipt" accept="image/*,application/pdf" capture="environment">', "span-2") +
-      '<div class="field span-2 check-field"><label class="check-label"><input type="checkbox" id="expBillable"' + (e.billable ? " checked" : "") + '> Recharge to the client on the job’s invoice</label></div>' +
-    '</div>' +
-    '<datalist id="merchantList">' + uniqueValues(state.data.expenses, "merchant").map(function (m) { return '<option value="' + attr(m) + '">'; }).join("") + '</datalist>' +
-    '<div class="btn-row"><button type="submit" class="btn btn-primary"' + (state.receiptBusy ? " disabled" : "") + '>' + (state.receiptBusy ? "Uploading receipt…" : "Save expense") + '</button>' + btn("Cancel", "exp-cancel") +
-      (e.id && e.invoiceId ? '<span class="lr-sub">Already on an invoice, so the amount is fixed there.</span>' : "") + '</div>' +
-  '</form>';
-}
 function uniqueValues(list, key) {
   var seen = {}, out = [];
   list.forEach(function (x) { var v = (x[key] || "").trim(); if (v && !seen[v.toLowerCase()]) { seen[v.toLowerCase()] = true; out.push(v); } });
   return out.sort();
 }
 function renderExpenses() {
-  var y = state.expYear || currentTaxYear();
-  var list = state.data.expenses.filter(function (e) { return inTaxYear(e.date, y); })
-    .sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
-  var total = round2(list.reduce(function (s, e) { return s + num(e.amount); }, 0));
-  var recharge = round2(list.filter(function (e) { return e.billable && !e.invoiceId; }).reduce(function (s, e) { return s + expenseCost(e); }, 0));
-  var noReceipt = list.filter(function (e) { return !e.receiptPath && !e.receiptUrl; }).length;
-  var byCat = {};
-  list.forEach(function (e) { byCat[e.category] = (byCat[e.category] || 0) + num(e.amount); });
+  var d = state.data, cur = currentTaxYear(), subs = d.subscriptions || [];
+  var q = (state.expSearch || "").toLowerCase(), cat = state.expCat || "";
+  var match = function (e) {
+    if (cat && e.category !== cat) return false;
+    if (!q) return true;
+    var j = jobById(e.jobId);
+    return [e.merchant, e.desc, e.notes, e.category, j && j.title, j && j.ref].join(" ").toLowerCase().indexOf(q) !== -1;
+  };
+  var yearList = d.expenses.filter(function (e) { return inTaxYear(e.date, cur); });
+  var total = round2(yearList.reduce(function (s, e) { return s + num(e.amount); }, 0));
+  var toBill = round2(d.expenses.filter(function (e) { return e.billable && !e.invoiceId; }).reduce(function (s, e) { return s + expenseCost(e); }, 0));
+  var active = subs.filter(subActive);
+  var monthly = round2(active.reduce(function (s, x) { return s + subMonthly(x); }, 0));
+  var annual = round2(active.filter(function (x) { return x.frequency === "annual"; }).reduce(function (s, x) { return s + num(x.amount); }, 0));
+  state.subsOpen = state.subsOpen === undefined ? false : state.subsOpen;
 
-  var form = state.expAdding ? renderExpenseForm() : state.expEditingId ? renderExpenseForm(byId(state.data.expenses, state.expEditingId)) : "";
-  var rows = list.map(function (e) {
-    var job = jobById(e.jobId);
-    return '<tr>' +
-      '<td class="date-cell">' + fmtDate(e.date) + '</td>' +
-      '<td><div class="lr-title">' + escapeHtml(e.merchant || "—") + '</div><div class="lr-sub">' + escapeHtml(e.desc || "") + '</div></td>' +
-      '<td>' + escapeHtml(e.category) + '</td>' +
-      '<td>' + (job ? '<a href="#/jobs/' + encodeURIComponent(job.id) + '">' + escapeHtml(job.ref || job.title) + '</a>' : '<span class="lr-sub">—</span>') +
-        (e.billable ? ' <span class="mini-tag">' + (e.invoiceId ? "recharged" : "recharge") + '</span>' : "") + '</td>' +
-      '<td class="num">' + money(e.amount) + (vatOn() && num(e.vat) ? '<div class="lr-sub">VAT ' + money(e.vat) + '</div>' : "") + '</td>' +
-      '<td class="center">' + (e.receiptPath || e.receiptUrl ? '<button class="btn btn-ghost btn-sm" data-action="exp-receipt" data-id="' + attr(e.id) + '" title="View receipt">🧾</button>' : '<span class="lr-sub" title="No receipt">—</span>') + '</td>' +
-      '<td class="actions-cell"><div class="btn-row nowrap">' +
-        '<button class="btn btn-ghost btn-sm" data-action="exp-edit" data-id="' + attr(e.id) + '">Edit</button>' +
-        '<button class="btn btn-ghost btn-sm" data-action="exp-dup" data-id="' + attr(e.id) + '" title="Copy to today, e.g. a monthly subscription">Repeat</button>' +
-        '<button class="btn btn-ghost btn-sm btn-danger" data-action="exp-del" data-id="' + attr(e.id) + '">✕</button></div></td></tr>';
+  var subsCard = '<div class="card subs-card"><div class="subs-head" data-action="subs-toggle">' +
+      '<div><span class="cap-title">Subscriptions</span> <span class="tag ds-sent">' + active.length + ' active</span><div class="lr-sub">Regular costs that log themselves each month or year</div></div>' +
+      '<div class="btn-row">' + icon("chevron", "chev" + (state.subsOpen ? " open" : "")) + btn("＋ Add", "sub-add", { cls: "btn-sm btn-primary" }) + '</div></div>' +
+    (state.subsOpen ? (subs.length ? subs.map(function (x) {
+      var next = subActive(x) ? subNext(x) : "";
+      return '<div class="sub-row' + (subActive(x) ? "" : " ended") + '"><div><b>' + escapeHtml(x.name) + '</b> <span class="tag cat-pill">' + escapeHtml(x.category || "") + '</span>' +
+        '<div class="lr-sub">' + money(x.amount) + ' · ' + (x.frequency === "annual" ? "Annual" : "Monthly") + (subActive(x) ? (next ? ' · Next: ' + fmtDate(next) : "") : ' · Ended ' + fmtDate(x.end)) + '</div></div>' +
+        '<div class="btn-row">' + (subActive(x) ? btn("Edit", "sub-edit", { id: x.id, cls: "btn-sm" }) + btn("End", "sub-end", { id: x.id, cls: "btn-sm btn-danger" }) : btn("Delete", "sub-del", { id: x.id, cls: "btn-sm btn-ghost" })) + '</div></div>';
+    }).join("") : '<div class="lr-sub sub-empty">Add things you pay for regularly — software, phone, insurance — and each payment is logged for you.</div>') : "") +
+  '</div>';
+
+  var head = '<div class="exp-actions btn-row">' + btn("Export CSV", "export-expenses", { id: String(cur) }) + btn("Export Receipts", "export-receipts", { id: String(cur) }) +
+      btn("Import CSV", "import-expenses") + btn(icon("camera") + " Scan Receipt", "scan-receipt") + btn("＋ Add Expense", "new-expense", { cls: "btn-primary" }) +
+      '<input type="file" id="expImportFile" accept=".csv,text/csv" hidden></div>';
+  var stats = '<div class="card exp-stats">' +
+      '<div><div class="stat-label">Total business costs ' + taxYearLabel(cur) + '</div><div class="mile-big">' + money(total) + '</div><div class="lr-sub">incl. subscriptions</div></div>' +
+      '<div><div class="stat-label">Not yet invoiced</div><div class="mile-big accent">' + money(toBill) + '</div><div class="lr-sub">billable to clients</div></div>' +
+      '<div><div class="stat-label">Monthly subs</div><div class="mile-big accent">' + money(monthly) + '<small>/mo</small></div></div>' +
+      '<div><div class="stat-label">Annual subs</div><div class="mile-big accent">' + money(annual) + '<small>/yr</small></div></div>' +
+    '</div>';
+  var usedCats = uniqueValues(d.expenses, "category");
+  var filters = '<div class="card exp-filter"><input type="search" class="field-input search-input" id="expSearch" placeholder="Search by merchant, description or notes…" value="' + attr(state.expSearch || "") + '">' +
+    '<div class="chips">' + [""].concat(usedCats).map(function (c) {
+      return '<button class="chip' + (c === cat ? " active" : "") + '" data-action="exp-cat" data-id="' + attr(c) + '">' + escapeHtml(c || "All") + '</button>';
+    }).join("") + '</div></div>';
+
+  if (!d.expenses.length) return subsCard + head + stats + emptyBlock("No expenses yet", "Add business costs as you go — snap the receipt and it's read for you. Moving from another system? Import its expenses CSV.", btn("Add Expense", "new-expense", { cls: "btn-primary" }) + btn("Scan Receipt", "scan-receipt"));
+  var years = {}; d.expenses.forEach(function (e) { if (e.date) years[taxYearOf(e.date)] = true; }); years[cur] = true;
+  state.expOpen = state.expOpen || {};
+  var groups = Object.keys(years).map(Number).sort(function (a, b) { return b - a; }).map(function (y) {
+    var all = d.expenses.filter(function (e) { return inTaxYear(e.date, y); }), list = all.filter(match)
+      .sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
+    if ((!all.length && y !== cur) || ((q || cat) && !list.length)) return "";
+    var open = state.expOpen[y] !== undefined ? state.expOpen[y] : y === cur || !!q || !!cat;
+    var yTotal = round2(list.reduce(function (s, e) { return s + num(e.amount); }, 0));
+    var yBill = round2(list.filter(function (e) { return e.billable && !e.invoiceId; }).reduce(function (s, e) { return s + expenseCost(e); }, 0));
+    var rows = !open ? "" : list.map(function (e) {
+      var job = jobById(e.jobId);
+      var inv = e.invoiceId ? '<span class="tag ds-paid">Invoiced</span>' : e.billable ? '<span class="tag ds-sent">To bill</span>' : '<span class="tag ds-draft">Non-billable</span>';
+      return '<tr><td class="date-cell">' + fmtDate(e.date) + '</td>' +
+        '<td class="exp-merchant">' + escapeHtml(e.merchant || "—") + (e.subId ? '<div class="lr-sub">' + icon("refresh") + ' subscription</div>' : "") + '</td>' +
+        '<td class="exp-desc">' + escapeHtml(e.desc || "") + (e.notes ? '<div class="lr-sub">' + escapeHtml(e.notes) + '</div>' : "") + '</td>' +
+        '<td><span class="tag cat-pill">' + escapeHtml(e.category || "") + '</span></td>' +
+        '<td>' + (job ? '<a class="ref-link" href="#/jobs/' + encodeURIComponent(job.id) + '">' + escapeHtml(job.ref || job.title) + '</a>' : '<span class="lr-sub">—</span>') + '</td>' +
+        '<td class="num"><b>' + money(e.amount) + '</b>' + (vatOn() && num(e.vat) ? '<div class="lr-sub">VAT ' + money(e.vat) + '</div>' : "") +
+          (e.receiptPath || e.receiptUrl ? '<div><button class="link-add rcpt-link" data-action="exp-receipt" data-id="' + attr(e.id) + '">' + icon("file") + ' Receipt</button></div>' : '<div class="lr-sub no-rcpt">no receipt</div>') + '</td>' +
+        '<td>' + inv + '</td>' +
+        '<td class="actions-cell"><div class="btn-row nowrap">' + btn("Amend", "exp-edit", { id: e.id, cls: "btn-sm" }) +
+          '<button class="icon-only btn-danger" data-action="exp-del" data-id="' + attr(e.id) + '" title="Delete">' + icon("bin") + '</button></div></td></tr>';
+    }).join("") || (open ? '<tr><td colspan="8" class="list-empty">No expenses match.</td></tr>' : "");
+    return '<tbody><tr class="fy-row" data-action="exp-year" data-id="' + y + '"><td colspan="5">' + icon("chevron", "chev" + (open ? " open" : "")) + ' <b>FY ' + taxYearLabel(y) + '</b>' + (y === cur ? ' <span class="tag ds-sent">Current</span>' : "") +
+      ' <span class="lr-sub">' + list.length + ' expense' + (list.length === 1 ? "" : "s") + '</span></td><td class="num"><b>' + money(yTotal) + '</b></td><td colspan="2" class="lr-sub">' + (yBill ? money(yBill) + " to bill" : "") + '</td></tr>' + rows + '</tbody>';
   }).join("");
-
-  return '<div class="log-toolbar">' + yearSelect("expYearSel", y) +
-      '<div class="btn-row">' + btn("Import CSV", "import-expenses") + btn("Export CSV", "export-expenses") + btn("＋ Add expense", "new-expense", { cls: "btn-primary" }) + '</div>' +
-      '<input type="file" id="expImportFile" accept=".csv,text/csv" hidden></div>' +
-    form +
-    '<div class="stat-grid">' +
-      stat("Spent " + taxYearLabel(y), money(total), list.length + " expense" + (list.length === 1 ? "" : "s")) +
-      stat("To recharge to clients", money(recharge), "Marked recharge, not yet invoiced") +
-      stat("Missing receipts", String(noReceipt), noReceipt ? "Keep receipts for HMRC" : "All have receipts", noReceipt ? "warn" : "") +
-    '</div>' +
-    (Object.keys(byCat).length ? '<div class="card breakdown cat-breakdown">' + Object.keys(byCat).sort(function (a, b) { return byCat[b] - byCat[a]; }).map(function (k) {
-      return '<div class="bar-row"><span class="bar-tag exp-cat">' + escapeHtml(k) + '</span><div class="bar-track"><div class="bar-fill" style="width:' + (byCat[k] / total * 100).toFixed(1) + '%;background:var(--accent)"></div></div><span class="exp-cat-amount">' + money(byCat[k]) + '</span></div>';
-    }).join("") + '</div>' : "") +
-    (list.length ? '<div class="card log-table-wrap"><table class="log-table"><thead><tr><th>Date</th><th>Supplier</th><th>Category</th><th>Job</th><th class="num">Amount</th><th class="center">Receipt</th><th class="actions-col"></th></tr></thead><tbody>' + rows + '</tbody></table></div>'
-      : (form ? "" : emptyBlock("No expenses in " + taxYearLabel(y), "Add business costs as you go. Photograph the receipt on your phone when you add it.", btn("Add expense", "new-expense", { cls: "btn-primary" }))));
+  return subsCard + head + stats + filters +
+    '<div class="card log-table-wrap"><div class="table-scroll"><table class="log-table exp-table"><thead><tr><th>Date</th><th>Merchant</th><th>Description</th><th>Category</th><th>Job</th><th class="num">Total</th><th>Inv?</th><th class="actions-col">Actions</th></tr></thead>' + groups + '</table></div></div>';
 }
 
 /* ---------- Mileage ---------- */
@@ -213,6 +221,8 @@ function renderSettings() {
       field("Rate after threshold (£/mile)", bound(id, id, "mileageRateLow", s.mileageRateLow, { num: true })) +
       field("Charge clients per mile (£) — leave blank to use the HMRC rate", bound(id, id, "mileageBillRate", s.mileageBillRate || "", { num: true, placeholder: "HMRC rate (" + Math.round(rateHighFor(currentTaxYear()) * 100) + "p)" }), "span-2") +
     '</div>');
+  var aiScan = sec("Receipt scanning (AI)", "When you upload a receipt it's read for you, and the date, supplier, total, category and description are filled in. Uses Claude through your own Supabase function — about 1–3p per receipt. Setup steps are at the top of supabase/functions/scan-receipt/index.ts.",
+    '<div class="form-grid"><div class="field span-2 check-field"><label class="check-label">' + bound(id, id, "aiScan", s.aiScan !== false, { type: "checkbox" }) + ' Scan receipts automatically when I upload them</label></div></div>');
   var categories = sec("Expense categories", "Each category is linked to the HMRC category it’s reported under.", catRows +
       '<div class="btn-row category-add">' + btn("＋ Add category", "cat-add", { cls: "btn-sm" }) + '</div>');
   var backup = '<div class="card settings-card backup-card"><div><div class="settings-title">Backup</div>' +
@@ -222,6 +232,6 @@ function renderSettings() {
   // Backup across the bottom.
   return '<div class="settings-grid">' +
       '<div class="settings-col">' + business + quotes + tax + mileage + '</div>' +
-      '<div class="settings-col">' + bank + categories + '</div>' +
+      '<div class="settings-col">' + bank + aiScan + categories + '</div>' +
     '</div>' + backup;
 }
