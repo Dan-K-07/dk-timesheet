@@ -308,6 +308,15 @@ textarea.field-input { width: 100%; resize: vertical; line-height: 1.45; font-fa
 .btn-dark { background: var(--ink); border-color: var(--ink); color: var(--bg); }
 .btn-amber { background: var(--onsite-bg); border-color: var(--onsite-bg); color: var(--onsite); }
 
+/* Jobs CSV import preview */
+.modal-card:has(.import-preview) { max-width: 560px; }
+.import-preview { text-align: left; margin-bottom: 16px; }
+.import-preview .log-table { min-width: 0; width: 100%; font-size: 12.5px; margin-bottom: 6px; }
+.import-preview .log-table td, .import-preview .log-table th { padding: 6px 6px; }
+.import-preview .nowrap { white-space: nowrap; }
+.import-warn { background: var(--onsite-bg); color: var(--onsite); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; font-weight: 600; margin: 8px 0; }
+.import-check { align-items: flex-start !important; margin-top: 10px !important; font-size: 13px !important; line-height: 1.4; }
+.import-check input { margin-top: 2px; }
 /* Save bar: sits along the bottom on pages you edit */
 .save-bar {
   position: fixed; left: 236px; right: 0; bottom: 0; z-index: 15;

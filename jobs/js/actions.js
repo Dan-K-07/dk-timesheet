@@ -10,7 +10,7 @@ function newJob(clientId) {
   var s = state.data.settings;
   var j = {
     id: uid("j"), ref: nextJobRef(), title: "", clientId: clientId || "", venue: "", po: "",
-    status: "Confirmed", terms: "", summary: "", notes: "",
+    status: "Pencilled", terms: "", summary: "", notes: "",
     dates: [newDateEntry(todayIso())],
     items: [], todos: [], created: new Date().toISOString()
   };
@@ -146,9 +146,110 @@ function downloadCsv(name, header, rows) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
 }
+/* Jobs export / import use the same layout as the old system's CSV:
+   Ref ID, Client, Project Description, Location, Start Date, End Date,
+   Status, Revenue - with dates as DD/MM/YYYY. */
+var JOB_CSV_HEAD = ["Ref ID", "Client", "Project Description", "Location", "Start Date", "End Date", "Status", "Revenue"];
 function exportJobs() {
-  downloadCsv("jobs.csv", ["Ref", "Title", "Client", "Venue", "Start", "End", "Status", "PO", "Value (net)", "Not invoiced"],
-    state.data.jobs.map(function (j) { return [j.ref, j.title, clientName(j.clientId), j.venue, jobStartDate(j), jobEndDate(j), j.status, j.po, jobNet(j).toFixed(2), jobUninvoiced(j).total.toFixed(2)]; }));
+  var list = state.data.jobs.slice().sort(function (a, b) { return (jobStartDate(a) || "") < (jobStartDate(b) || "") ? -1 : 1; });
+  downloadCsv("Jobs_Export_" + todayIso() + ".csv", JOB_CSV_HEAD,
+    list.map(function (j) { return [j.ref, (byId(state.data.clients, j.clientId) || {}).name || "", j.title, j.venue, ukDate(jobStartDate(j)), ukDate(jobEndDate(j)), j.status, String(round2(jobNet(j)))]; }));
+}
+// Reads CSV text into rows of cells (handles quotes, commas and line breaks in cells).
+function parseCsv(text) {
+  var rows = [], row = [], cell = "", q = false;
+  text = String(text || "").replace(/^\uFEFF/, "");
+  for (var i = 0; i < text.length; i++) {
+    var ch = text[i];
+    if (q) {
+      if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+      else cell += ch;
+    } else if (ch === '"') q = true;
+    else if (ch === ",") { row.push(cell); cell = ""; }
+    else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell); cell = ""; if (row.some(function (c) { return c.trim(); })) rows.push(row); row = [];
+    } else cell += ch;
+  }
+  row.push(cell); if (row.some(function (c) { return c.trim(); })) rows.push(row);
+  return rows;
+}
+function csvDate(v) { v = String(v || "").trim(); return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : parseUkDate(v); }
+function importJobsFile(file) {
+  var reader = new FileReader();
+  reader.onload = function () { previewJobImport(String(reader.result || "")); };
+  reader.onerror = function () { toast("Couldn't read that file."); };
+  reader.readAsText(file);
+}
+// Works out what the import would do, shows it, and imports on confirm.
+function previewJobImport(text) {
+  var rows = parseCsv(text);
+  if (!rows.length) { toast("That file is empty."); return; }
+  var head = rows[0].map(function (h) { return h.trim().toLowerCase(); });
+  var col = function (names) { for (var i = 0; i < names.length; i++) { var k = head.indexOf(names[i]); if (k !== -1) return k; } return -1; };
+  var C = { ref: col(["ref id", "ref", "id"]), client: col(["client", "client name"]), title: col(["project description", "project", "title", "description", "job"]),
+    venue: col(["location", "venue"]), start: col(["start date", "start", "date"]), end: col(["end date", "end"]), status: col(["status"]), revenue: col(["revenue", "value", "total", "amount"]) };
+  if (C.title === -1 && C.ref === -1) { toast("This doesn't look like a jobs CSV — it needs columns like Ref ID, Client, Project Description."); return; }
+  var have = {}; state.data.jobs.forEach(function (j) { if (j.ref) have[String(j.ref).trim().toLowerCase()] = true; });
+  var clientsByName = {}; state.data.clients.forEach(function (c) { clientsByName[(c.name || "").trim().toLowerCase()] = c; });
+  var get = function (r, k) { return k === -1 ? "" : String(r[k] || "").trim(); };
+  var fresh = [], dupes = 0, newClients = {}, badDates = 0, sciRefs = 0;
+  rows.slice(1).forEach(function (r) {
+    var ref = get(r, C.ref), key = ref.toLowerCase();
+    if (key && have[key]) { dupes++; return; }
+    if (key) have[key] = true;
+    if (/^\d(\.\d+)?e\+\d+$/i.test(ref)) sciRefs++;
+    var cname = get(r, C.client);
+    if (cname && !clientsByName[cname.toLowerCase()]) newClients[cname.toLowerCase()] = cname;
+    var start = csvDate(get(r, C.start)), end = csvDate(get(r, C.end)) || start;
+    if (get(r, C.start) && !start) badDates++;
+    var st = get(r, C.status).toLowerCase(), status = "Confirmed";
+    JOB_STATUSES.forEach(function (s) { if (s.toLowerCase() === st) status = s; });
+    if (/^awaiting/.test(st)) status = "Awaiting Payment";
+    fresh.push({ ref: ref, client: cname, title: get(r, C.title), venue: get(r, C.venue), start: start, end: end, status: status, revenue: round2(num(get(r, C.revenue).replace(/[£,\s]/g, ""))) });
+  });
+  var nc = Object.keys(newClients).length;
+  var sample = fresh.slice(0, 6).map(function (x) {
+    return '<tr><td>' + escapeHtml(x.ref) + '</td><td>' + escapeHtml(x.title) + '<div class="lr-sub">' + escapeHtml(x.client) + '</div></td><td class="nowrap">' + (x.start ? fmtDate(x.start) : "—") + '</td><td>' + escapeHtml(x.status) + '</td><td class="num">' + money(x.revenue) + '</td></tr>';
+  }).join("");
+  if (!fresh.length) { toast(dupes ? "Nothing new — all " + dupes + " jobs in that file are already here." : "No jobs found in that file."); return; }
+  showModal({
+    icon: "briefcase", title: "Import " + fresh.length + " job" + (fresh.length === 1 ? "" : "s") + "?",
+    text: [dupes ? dupes + " already here (skipped)" : "", nc ? nc + " new client" + (nc === 1 ? "" : "s") + " will be added" : ""].filter(Boolean).join(" · ") || "Check they look right, then import.",
+    body: '<div class="import-preview"><table class="log-table"><thead><tr><th>Ref</th><th>Job</th><th>Start</th><th>Status</th><th class="num">Revenue</th></tr></thead><tbody>' + sample + '</tbody></table>' +
+      (fresh.length > 6 ? '<div class="lr-sub">…and ' + (fresh.length - 6) + ' more</div>' : "") +
+      (sciRefs ? '<div class="import-warn">' + sciRefs + ' Ref ID' + (sciRefs === 1 ? " looks" : "s look") + ' like 2.5112E+11 — that happens if the file was saved from Excel. Use the original CSV from your old system if you can.</div>' : "") +
+      (badDates ? '<div class="import-warn">' + badDates + ' date' + (badDates === 1 ? "" : "s") + ' couldn\'t be read and will be left blank.</div>' : "") +
+      '<label class="check-label import-check"><input type="checkbox" id="importInvoiced" checked> Completed and Awaiting Payment jobs were invoiced in my old system — don\'t list them as needing an invoice</label></div>',
+    buttons: [
+      { label: "Import " + fresh.length + " job" + (fresh.length === 1 ? "" : "s"), cls: "modal-primary", run: function () { doJobImport(fresh, document.getElementById("importInvoiced").checked); } },
+      { label: "Cancel", cls: "modal-neutral" }
+    ]
+  });
+}
+function doJobImport(list, alreadyInvoiced) {
+  var byName = {}; state.data.clients.forEach(function (c) { byName[(c.name || "").trim().toLowerCase()] = c; });
+  list.forEach(function (x) {
+    var c = null;
+    if (x.client) {
+      c = byName[x.client.toLowerCase()];
+      if (!c) {
+        c = { id: uid("c"), name: x.client, contact: "", contacts: [], email: "", phone: "", address: "", terms: "", notes: "", supplierRef: "" };
+        state.data.clients.push(c); byName[x.client.toLowerCase()] = c;
+      }
+    }
+    var j = { id: uid("j"), ref: x.ref || nextJobRef(), title: x.title, clientId: c ? c.id : "", venue: x.venue, po: "", status: x.status,
+      terms: "", summary: "", notes: "Imported from old system", items: [], todos: [], created: new Date().toISOString(), imported: true,
+      dates: x.start ? [{ id: uid("d"), start: x.start, end: x.end || x.start, allDay: true, startTime: "", endTime: "", label: "" }] : [] };
+    if (x.revenue) {
+      var it = { id: uid("i"), desc: x.title || "Services", qty: 1, price: x.revenue };
+      if (alreadyInvoiced && (x.status === "Completed" || x.status === "Awaiting Payment")) it.invoiceId = "old-system";
+      j.items.push(it);
+    }
+    state.data.jobs.push(j);
+  });
+  save(); state.jobFilter = "all"; render();
+  toast("Imported " + list.length + " job" + (list.length === 1 ? "" : "s") + ".");
 }
 function exportExpenses(y, r) {
   var list = state.data.expenses.filter(function (e) { return r ? inRange(e.date, r) : inTaxYear(e.date, y); }).sort(function (a, b) { return a.date < b.date ? -1 : 1; });
@@ -209,6 +310,9 @@ function onBoundInput(el, final) {
   if (f === "start" && el.getAttribute("data-bind") === "job-dates" && (!target.end || target.end < target.start || target.end === before)) {
     target.end = target.start;
     var endEl = document.querySelector('[data-bind="job-dates"][data-sub="' + target.id + '"][data-field="end"]'); if (endEl) endEl.value = target.end;
+  }
+  if (f === "projectId" && el.getAttribute("data-bind") === "job" && target.projectId) {
+    var pj = projectById(target.projectId); if (pj && pj.clientId !== target.clientId) target.clientId = pj.clientId;
   }
   if (f === "clientId" && el.getAttribute("data-bind") === "job" && target.projectId) {
     var pr = projectById(target.projectId); if (!pr || pr.clientId !== target.clientId) delete target.projectId;
@@ -286,6 +390,7 @@ var ACTIONS = {
   "inv-filter": function (id) { state.invFilter = id; render(); },
   "report-q": function (id) { state.reportQuarter = id; render(); },
   "export-jobs": exportJobs,
+  "import-jobs": function () { document.getElementById("jobsImportFile").click(); },
 
   /* Job page */
   "job-date-add": function (id) {
@@ -692,6 +797,7 @@ document.addEventListener("change", function (ev) {
   if (el.id === "reportYearSel") { state.reportYear = parseInt(el.value, 10); render(); }
   if (el.id === "logoFile" && el.files[0]) readLogo(el.files[0]);
   if (el.id === "backupFile" && el.files[0]) restoreBackup(el.files[0]);
+  if (el.id === "jobsImportFile" && el.files[0]) { guardLeave(function () { importJobsFile(el.files[0]); el.value = ""; }); }
   updateSaveBar();
 });
 document.addEventListener("submit", function (ev) {
