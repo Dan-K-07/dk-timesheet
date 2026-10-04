@@ -20,7 +20,7 @@ function renderExpenseForm(e) {
       field("What was it for", '<input class="field-input" id="expDesc" value="' + attr(e.desc) + '" placeholder="e.g. Gaffer tape and cable ties">', "span-2") +
       (vatOn() ? field("VAT included (£)", '<input class="field-input" id="expVat" inputmode="decimal" value="' + attr(e.vat) + '" placeholder="0.00">') : "") +
       field("Job", '<select class="field-input" id="expJob">' + opt(jobOptions(), e.jobId) + '</select>', vatOn() ? "" : "span-2") +
-      field("Receipt" + (e.receiptPath ? " (one attached — choose a file to replace it)" : ""), '<input type="file" class="field-input" id="expReceipt" accept="image/*,application/pdf" capture="environment">', "span-2") +
+      field("Receipt" + (e.receiptPath || e.receiptUrl ? " (one attached — choose a file to replace it)" : ""), '<input type="file" class="field-input" id="expReceipt" accept="image/*,application/pdf" capture="environment">', "span-2") +
       '<div class="field span-2 check-field"><label class="check-label"><input type="checkbox" id="expBillable"' + (e.billable ? " checked" : "") + '> Recharge to the client on the job’s invoice</label></div>' +
     '</div>' +
     '<datalist id="merchantList">' + uniqueValues(state.data.expenses, "merchant").map(function (m) { return '<option value="' + attr(m) + '">'; }).join("") + '</datalist>' +
@@ -39,7 +39,7 @@ function renderExpenses() {
     .sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
   var total = round2(list.reduce(function (s, e) { return s + num(e.amount); }, 0));
   var recharge = round2(list.filter(function (e) { return e.billable && !e.invoiceId; }).reduce(function (s, e) { return s + expenseCost(e); }, 0));
-  var noReceipt = list.filter(function (e) { return !e.receiptPath; }).length;
+  var noReceipt = list.filter(function (e) { return !e.receiptPath && !e.receiptUrl; }).length;
   var byCat = {};
   list.forEach(function (e) { byCat[e.category] = (byCat[e.category] || 0) + num(e.amount); });
 
@@ -53,7 +53,7 @@ function renderExpenses() {
       '<td>' + (job ? '<a href="#/jobs/' + encodeURIComponent(job.id) + '">' + escapeHtml(job.ref || job.title) + '</a>' : '<span class="lr-sub">—</span>') +
         (e.billable ? ' <span class="mini-tag">' + (e.invoiceId ? "recharged" : "recharge") + '</span>' : "") + '</td>' +
       '<td class="num">' + money(e.amount) + (vatOn() && num(e.vat) ? '<div class="lr-sub">VAT ' + money(e.vat) + '</div>' : "") + '</td>' +
-      '<td class="center">' + (e.receiptPath ? '<button class="btn btn-ghost btn-sm" data-action="exp-receipt" data-id="' + attr(e.id) + '" title="View receipt">🧾</button>' : '<span class="lr-sub" title="No receipt">—</span>') + '</td>' +
+      '<td class="center">' + (e.receiptPath || e.receiptUrl ? '<button class="btn btn-ghost btn-sm" data-action="exp-receipt" data-id="' + attr(e.id) + '" title="View receipt">🧾</button>' : '<span class="lr-sub" title="No receipt">—</span>') + '</td>' +
       '<td class="actions-cell"><div class="btn-row nowrap">' +
         '<button class="btn btn-ghost btn-sm" data-action="exp-edit" data-id="' + attr(e.id) + '">Edit</button>' +
         '<button class="btn btn-ghost btn-sm" data-action="exp-dup" data-id="' + attr(e.id) + '" title="Copy to today, e.g. a monthly subscription">Repeat</button>' +
@@ -61,7 +61,8 @@ function renderExpenses() {
   }).join("");
 
   return '<div class="log-toolbar">' + yearSelect("expYearSel", y) +
-      '<div class="btn-row">' + btn("Export CSV", "export-expenses") + btn("＋ Add expense", "new-expense", { cls: "btn-primary" }) + '</div></div>' +
+      '<div class="btn-row">' + btn("Import CSV", "import-expenses") + btn("Export CSV", "export-expenses") + btn("＋ Add expense", "new-expense", { cls: "btn-primary" }) + '</div>' +
+      '<input type="file" id="expImportFile" accept=".csv,text/csv" hidden></div>' +
     form +
     '<div class="stat-grid">' +
       stat("Spent " + taxYearLabel(y), money(total), list.length + " expense" + (list.length === 1 ? "" : "s")) +

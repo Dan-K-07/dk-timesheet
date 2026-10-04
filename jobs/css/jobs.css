@@ -314,6 +314,7 @@ textarea.field-input { width: 100%; resize: vertical; line-height: 1.45; font-fa
 .import-preview .log-table { min-width: 0; width: 100%; font-size: 12.5px; margin-bottom: 6px; }
 .import-preview .log-table td, .import-preview .log-table th { padding: 6px 6px; }
 .import-preview .nowrap { white-space: nowrap; }
+.import-note { background: var(--accent-soft); color: var(--accent); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; margin: 8px 0; }
 .import-warn { background: var(--onsite-bg); color: var(--onsite); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; font-weight: 600; margin: 8px 0; }
 .import-check { align-items: flex-start !important; margin-top: 10px !important; font-size: 13px !important; line-height: 1.4; }
 .import-check input { margin-top: 2px; }

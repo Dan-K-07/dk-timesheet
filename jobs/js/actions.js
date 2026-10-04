@@ -227,6 +227,109 @@ function previewJobImport(text) {
     ]
   });
 }
+/* Expenses import, from the old system's CSV:
+   Date, Merchant, Description, Category, Amount, Currency, Billable,
+   Invoiced, Job, Notes, Receipt URL. Receipts are copied into your own
+   private storage when they can be fetched; otherwise the link is kept. */
+function importExpensesFile(file) {
+  var reader = new FileReader();
+  reader.onload = function () { previewExpenseImport(String(reader.result || "")); };
+  reader.onerror = function () { toast("Couldn't read that file."); };
+  reader.readAsText(file);
+}
+function expenseKey(date, amount, merchant, desc) { return [date, round2(num(amount)).toFixed(2), String(merchant || "").trim().toLowerCase(), String(desc || "").trim().toLowerCase()].join("|"); }
+function titleCase(s) { return String(s || "").toLowerCase().replace(/(^|[\s\/-])([a-z])/g, function (m, a, b) { return a + b.toUpperCase(); }); }
+function previewExpenseImport(text) {
+  var rows = parseCsv(text);
+  if (!rows.length) { toast("That file is empty."); return; }
+  var head = rows[0].map(function (h) { return h.trim().toLowerCase(); });
+  var col = function (names) { for (var i = 0; i < names.length; i++) { var k = head.indexOf(names[i]); if (k !== -1) return k; } return -1; };
+  var C = { date: col(["date"]), merchant: col(["merchant", "supplier", "shop"]), desc: col(["description", "what was it for"]), category: col(["category"]),
+    amount: col(["amount", "total"]), currency: col(["currency"]), vat: col(["vat"]), billable: col(["billable", "recharged", "recharge"]), invoiced: col(["invoiced"]),
+    job: col(["job"]), notes: col(["notes", "note"]), receipt: col(["receipt url", "receipt"]) };
+  if (C.date === -1 || C.amount === -1) { toast("This doesn't look like an expenses CSV — it needs at least Date and Amount columns."); return; }
+  var get = function (r, k) { return k === -1 ? "" : String(r[k] || "").trim(); };
+  var yes = function (v) { return /^(yes|y|true|1)$/i.test(v); };
+  var have = {}; state.data.expenses.forEach(function (e) { have[expenseKey(e.date, e.amount, e.merchant, e.desc)] = true; });
+  var cats = state.data.settings.expenseCategories, newCats = {};
+  var findCat = function (c) { for (var i = 0; i < cats.length; i++) if (cats[i].name.toLowerCase() === c.toLowerCase()) return cats[i].name; return null; };
+  var findJob = function (t) { t = t.toLowerCase(); return state.data.jobs.filter(function (j) { return t && ((j.ref || "").toLowerCase() === t || (j.title || "").toLowerCase() === t); })[0]; };
+  var fresh = [], dupes = 0, bad = 0, foreign = 0, receipts = 0;
+  rows.slice(1).forEach(function (r) {
+    var date = csvDate(get(r, C.date)), amount = round2(num(get(r, C.amount).replace(/[£,\s]/g, "")));
+    if (!date || !amount) { bad++; return; }
+    var desc = [get(r, C.desc), get(r, C.notes)].filter(Boolean).join(" — ");
+    var key = expenseKey(date, amount, get(r, C.merchant), desc);
+    if (have[key]) { dupes++; return; }
+    have[key] = true;
+    var rawCat = get(r, C.category), cat = rawCat ? findCat(rawCat) || titleCase(rawCat) : "Other";
+    if (!findCat(cat)) newCats[cat.toLowerCase()] = cat;
+    if (get(r, C.currency) && !/^gbp$/i.test(get(r, C.currency))) foreign++;
+    var job = findJob(get(r, C.job)), url = get(r, C.receipt);
+    if (/^https?:\/\//i.test(url)) receipts++; else url = "";
+    fresh.push({ date: date, merchant: get(r, C.merchant), desc: desc, category: cat, amount: amount, vat: round2(num(get(r, C.vat))),
+      billable: yes(get(r, C.billable)), invoiced: yes(get(r, C.invoiced)), jobId: job ? job.id : "", jobText: get(r, C.job), receiptUrl: url });
+  });
+  if (!fresh.length) { toast(dupes ? "Nothing new — all " + dupes + " expenses in that file are already here." : "No expenses found in that file."); return; }
+  var nc = Object.keys(newCats).map(function (k) { return newCats[k]; });
+  var total = round2(fresh.reduce(function (s, x) { return s + x.amount; }, 0));
+  var sample = fresh.slice(0, 6).map(function (x) {
+    return '<tr><td class="nowrap">' + fmtDate(x.date) + '</td><td>' + escapeHtml(x.merchant || "—") + '<div class="lr-sub">' + escapeHtml(x.desc) + '</div></td><td>' + escapeHtml(x.category) + '</td><td class="num">' + money(x.amount) + '</td><td class="center">' + (x.receiptUrl ? "🧾" : "—") + '</td></tr>';
+  }).join("");
+  var online = !!state.user;
+  showModal({
+    icon: "receipt", title: "Import " + fresh.length + " expense" + (fresh.length === 1 ? "" : "s") + "?",
+    text: [money(total) + " in total", dupes ? dupes + " already here (skipped)" : "", bad ? bad + " row" + (bad === 1 ? "" : "s") + " without a date or amount (skipped)" : ""].filter(Boolean).join(" · "),
+    body: '<div class="import-preview"><table class="log-table"><thead><tr><th>Date</th><th>Supplier</th><th>Category</th><th class="num">Amount</th><th class="center">Receipt</th></tr></thead><tbody>' + sample + '</tbody></table>' +
+      (fresh.length > 6 ? '<div class="lr-sub">…and ' + (fresh.length - 6) + ' more</div>' : "") +
+      (nc.length ? '<div class="import-note">New categor' + (nc.length === 1 ? "y" : "ies") + ' to add: <b>' + escapeHtml(nc.join(", ")) + '</b> (reported as "Other allowable expenses" — change it in Settings if needed).</div>' : "") +
+      (foreign ? '<div class="import-warn">' + foreign + ' expense' + (foreign === 1 ? " isn't" : "s aren't") + ' in GBP — the amounts are imported as they are, so check them.</div>' : "") +
+      (receipts ? '<label class="check-label import-check"><input type="checkbox" id="importReceipts"' + (online ? " checked" : " disabled") + '> Copy the ' + receipts + ' receipt' + (receipts === 1 ? "" : "s") + ' into DK Jobs (private storage)' +
+        (online ? "" : " — needs a connection; the links are kept for now") + '</label>' : "") + '</div>',
+    buttons: [
+      { label: "Import " + fresh.length + " expense" + (fresh.length === 1 ? "" : "s"), cls: "modal-primary", run: function () {
+        var copy = !!(document.getElementById("importReceipts") && document.getElementById("importReceipts").checked);
+        doExpenseImport(fresh, nc, copy);
+      } },
+      { label: "Cancel", cls: "modal-neutral" }
+    ]
+  });
+}
+function doExpenseImport(list, newCats, copyReceipts) {
+  newCats.forEach(function (c) { state.data.settings.expenseCategories.push({ name: c, hmrc: "other" }); });
+  var added = list.map(function (x) {
+    var e = { id: uid("e"), created: new Date().toISOString(), imported: true, date: x.date, merchant: x.merchant, desc: x.desc, category: x.category,
+      amount: x.amount, vat: x.vat, jobId: x.jobId, billable: x.billable, receiptPath: "", receiptUrl: x.receiptUrl };
+    if (x.billable && x.invoiced) e.invoiceId = "old-system";
+    state.data.expenses.push(e);
+    return e;
+  });
+  save(); render();
+  toast("Imported " + added.length + " expense" + (added.length === 1 ? "" : "s") + ".");
+  if (copyReceipts) copyImportedReceipts(added.filter(function (e) { return e.receiptUrl; }));
+}
+// Downloads each old receipt and stores it in your private receipts bucket.
+async function copyImportedReceipts(list) {
+  var done = 0, failed = 0;
+  for (var i = 0; i < list.length; i++) {
+    var e = list[i];
+    toast("Copying receipts… " + (i + 1) + " of " + list.length);
+    try {
+      var res = await fetch(e.receiptUrl);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      var blob = await res.blob();
+      var name = decodeURIComponent(e.receiptUrl.split("?")[0].split("/").pop() || "receipt");
+      var path = await uploadReceipt(new File([blob], name, { type: blob.type || "application/pdf" }), e.id);
+      // Saved straight away, unless you're part-way through other edits
+      // (then it's saved with them when you press Save).
+      var clean = !hasChanges(), live = byId(state.data.expenses, e.id);
+      if (live) { live.receiptPath = path; delete live.receiptUrl; if (clean) save(); }
+      done++;
+    } catch (err) { failed++; }
+  }
+  render();
+  toast(done + " receipt" + (done === 1 ? "" : "s") + " copied" + (failed ? " · " + failed + " couldn't be copied — their original links are kept" : "") + ".");
+}
 function doJobImport(list, alreadyInvoiced) {
   var byName = {}; state.data.clients.forEach(function (c) { byName[(c.name || "").trim().toLowerCase()] = c; });
   list.forEach(function (x) {
@@ -611,7 +714,11 @@ var ACTIONS = {
     deleteReceipt(e.receiptPath);
     state.data.expenses = state.data.expenses.filter(function (x) { return x.id !== id; }); save(); render();
   },
-  "exp-receipt": function (id) { openReceipt(byId(state.data.expenses, id).receiptPath); },
+  "exp-receipt": function (id) {
+    var e = byId(state.data.expenses, id);
+    if (e.receiptPath) openReceipt(e.receiptPath); else if (e.receiptUrl) window.open(e.receiptUrl, "_blank", "noopener");
+  },
+  "import-expenses": function () { document.getElementById("expImportFile").click(); },
   "export-expenses": function () { exportExpenses(state.expYear || currentTaxYear()); },
 
   /* Mileage */
@@ -760,6 +867,7 @@ document.addEventListener("change", function (ev) {
   if (el.id === "reportYearSel") { state.reportYear = parseInt(el.value, 10); render(); }
   if (el.id === "logoFile" && el.files[0]) readLogo(el.files[0]);
   if (el.id === "backupFile" && el.files[0]) restoreBackup(el.files[0]);
+  if (el.id === "expImportFile" && el.files[0]) { guardLeave(function () { importExpensesFile(el.files[0]); el.value = ""; }); }
   if (el.id === "jobsImportFile" && el.files[0]) { guardLeave(function () { importJobsFile(el.files[0]); el.value = ""; }); }
   updateSaveBar();
 });
