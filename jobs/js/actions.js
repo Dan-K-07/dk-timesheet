@@ -361,13 +361,8 @@ var ACTIONS = {
       state.expAdding = true; render(); focusForm("expAmount");
     });
   },
-  "new-mileage": function (id) {
-    guardLeave(function () {
-      state.mileEditingId = null; state.mileFromJob = id || "";
-      if (state.route.tab !== "mileage") { state.pendingForm = "mileage"; goNow("mileage"); return; }
-      state.mileAdding = true; render(); focusForm("mMiles");
-    });
-  },
+  // Log Journey popup, from anywhere (on a job page it's linked to that job).
+  "new-mileage": function (id) { openJourney(null, id || (state.route.tab === "jobs" ? state.route.id : "")); },
   "save": function () { saveAll().then(function (ok) { if (ok) render(); }); },
   "discard": function () {
     showModal({
@@ -620,15 +615,22 @@ var ACTIONS = {
   "export-expenses": function () { exportExpenses(state.expYear || currentTaxYear()); },
 
   /* Mileage */
-  "mile-cancel": function () { state.mileAdding = false; state.mileEditingId = null; render(); },
-  "mile-edit": function (id) { guardLeave(function () { state.mileEditingId = id; state.mileAdding = false; render(); focusForm("mMiles"); }); },
+  "mile-edit": function (id) { openJourney(byId(state.data.mileage, id)); },
+  "mile-year": function (id) { var y = parseInt(id, 10); state.mileOpen = state.mileOpen || {}; state.mileOpen[y] = !(state.mileOpen[y] !== undefined ? state.mileOpen[y] : y === currentTaxYear()); render(); },
+  // Put a journey on its job's charges at your per-mile rate (saved with the job).
+  "mile-add-item": function (id) {
+    var m = byId(state.data.mileage, id), j = m && jobById(m.jobId); if (!j) return;
+    var rate = mileageChargeRate(m.date), it = { id: uid("i"), desc: journeyItemDesc(m, rate), qty: tripMiles(m), price: rate };
+    j.items.push(it); m.itemId = it.id; render();
+    toast("Added to this job's charges — press Save to keep it.");
+  },
   "mile-del": function (id) {
     var m = byId(state.data.mileage, id);
     if (m.invoiceId) { alert("This journey is on an invoice. Remove it from the invoice first."); return; }
     if (!confirm("Delete this journey?")) return;
     state.data.mileage = state.data.mileage.filter(function (x) { return x.id !== id; }); save(); render();
   },
-  "export-mileage": function () { exportMileage(state.mileYear || currentTaxYear()); },
+  "export-mileage": function (id) { exportMileage(parseInt(id, 10) || currentTaxYear()); },
 
   /* Reports */
   "export-summary": function () { exportSummary(state.reportYear || currentTaxYear(), state.reportQuarter || "all"); },
@@ -683,40 +685,9 @@ async function submitExpense(form) {
   save(); render(); toast("Expense saved.");
   return true;
 }
-function submitMileage(form) {
-  var g = function (id) { var el = document.getElementById(id); return el ? el.value.trim() : ""; };
-  var miles = num(g("mMiles"));
-  if (!g("mDate")) { toast("Add the date."); return false; }
-  if (miles <= 0) { toast("Add the miles."); return false; }
-  var id = form.getAttribute("data-id");
-  var m = id ? byId(state.data.mileage, id) : { id: uid("m"), created: new Date().toISOString() };
-  if (m.invoiceId && (round2(num(m.miles)) !== round2(miles))) { toast("This journey is on an invoice — the miles can't change."); return false; }
-  Object.assign(m, {
-    date: g("mDate"), jobId: g("mJob"), from: g("mFrom"), to: g("mTo"), miles: round2(miles), trip: g("mTrip"),
-    desc: g("mDesc"), billable: document.getElementById("mBillable").checked, billRate: round2(num(g("mBillRate")))
-  });
-  if (!id) state.data.mileage.push(m);
-  state.mileAdding = false; state.mileEditingId = null;
-  state.formKey = null;
-  save(); render(); toast("Journey saved.");
-  return true;
-}
-function updateMileagePreview() {
-  var p = document.getElementById("mPreview"); if (!p) return;
-  var miles = num((document.getElementById("mMiles") || {}).value) * ((document.getElementById("mTrip") || {}).value === "return" ? 2 : 1);
-  var date = (document.getElementById("mDate") || {}).value || todayIso();
-  p.innerHTML = miles ? "<b>" + round2(miles) + " miles</b> · about <b>" + money(miles * rateHighFor(taxYearOf(date))) + "</b> claimable" : "";
-  var link = document.getElementById("mMapLink");
-  var from = (document.getElementById("mFrom") || {}).value, to = (document.getElementById("mTo") || {}).value;
-  if (link) {
-    link.href = "https://www.google.com/maps/dir/?api=1&origin=" + encodeURIComponent(from || "") + "&destination=" + encodeURIComponent(to || "") + "&travelmode=driving";
-    link.style.visibility = from && to ? "visible" : "hidden";
-  }
-}
-
 /* ---------- Saving ---------- */
 // An open expense or mileage form counts as unsaved once you change it.
-function openForm() { return document.getElementById("expenseForm") || document.getElementById("mileageForm"); }
+function openForm() { return document.getElementById("expenseForm"); }
 function formValues(f) {
   return Array.prototype.map.call(f.querySelectorAll("input, select, textarea"), function (el) {
     return el.type === "checkbox" ? el.checked : el.type === "file" ? el.files.length : el.value;
@@ -732,7 +703,7 @@ function formChanged() { var f = openForm(); return !!f && formValues(f) !== sta
 async function saveAll() {
   var f = openForm();
   if (f && formChanged()) {
-    var ok = f.id === "expenseForm" ? await submitExpense(f) : submitMileage(f);
+    var ok = await submitExpense(f);
     if (!ok) return false;
   }
   if (dataChanged()) { save(); toast("Saved."); }
@@ -769,7 +740,6 @@ document.addEventListener("input", function (ev) {
     var old = c.name; c[el.getAttribute("data-cat-field")] = el.value;
     if (el.getAttribute("data-cat-field") === "name") state.data.expenses.forEach(function (e) { if (e.category === old) e.category = el.value; });
   }
-  if (/^m(Miles|Trip|Date|From|To)$/.test(el.id)) updateMileagePreview();
   updateSaveBar();
 });
 document.addEventListener("change", function (ev) {
@@ -781,19 +751,12 @@ document.addEventListener("change", function (ev) {
     return;
   }
   if (el.hasAttribute("data-cat-index")) { updateSaveBar(); return; }
-  if (el.id === "mJob") {
-    var jj = jobById(el.value), to = document.getElementById("mTo"), dt = document.getElementById("mDate");
-    if (jj && to && !to.value) to.value = jj.venue || "";
-    if (jj && dt && jobStartDate(jj)) dt.value = jobStartDate(jj);
-    updateMileagePreview();
-  }
   if (el.hasAttribute("data-project-job")) {
     var pj = jobById(el.getAttribute("data-project-job"));
     if (pj) { if (el.checked) pj.projectId = el.getAttribute("data-id"); else if (pj.projectId === el.getAttribute("data-id")) delete pj.projectId; }
     render(); return;
   }
   if (el.id === "expYearSel") { state.expYear = parseInt(el.value, 10); render(); }
-  if (el.id === "mileYearSel") { state.mileYear = parseInt(el.value, 10); render(); }
   if (el.id === "reportYearSel") { state.reportYear = parseInt(el.value, 10); render(); }
   if (el.id === "logoFile" && el.files[0]) readLogo(el.files[0]);
   if (el.id === "backupFile" && el.files[0]) restoreBackup(el.files[0]);
@@ -802,7 +765,6 @@ document.addEventListener("change", function (ev) {
 });
 document.addEventListener("submit", function (ev) {
   if (ev.target.id === "expenseForm") { ev.preventDefault(); submitExpense(ev.target); }
-  if (ev.target.id === "mileageForm") { ev.preventDefault(); submitMileage(ev.target); }
 });
 document.addEventListener("keydown", function (ev) {
   if (modalOpen()) { if (ev.key === "Escape") closeModal(); return; }

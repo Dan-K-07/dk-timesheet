@@ -317,6 +317,57 @@ textarea.field-input { width: 100%; resize: vertical; line-height: 1.45; font-fa
 .import-warn { background: var(--onsite-bg); color: var(--onsite); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; font-weight: 600; margin: 8px 0; }
 .import-check { align-items: flex-start !important; margin-top: 10px !important; font-size: 13px !important; line-height: 1.4; }
 .import-check input { margin-top: 2px; }
+/* Log / Amend Journey popup */
+.modal-card:has(.journey-form) { max-width: 640px; text-align: left; }
+.modal-card:has(.journey-form) .modal-title { margin-bottom: 14px; }
+.journey-form { gap: 12px; }
+.j-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.j-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.journey-form .field { margin: 0; }
+.place-wrap { position: relative; }
+.place-list { display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 5; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); overflow: hidden; }
+.place-list.open { display: block; }
+.place-opt { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: none; padding: 8px 10px; font: inherit; font-size: 13px; color: var(--ink); text-align: left; cursor: pointer; }
+.place-opt:hover { background: var(--panel-2); }
+.place-opt .ico { width: 14px; height: 14px; color: var(--ink-dim); }
+.miles-wrap { display: flex; gap: 4px; align-items: center; }
+.miles-wrap .field-input { flex: 1; min-width: 0; background: var(--accent-soft); font-weight: 700; }
+.miles-wrap .icon-only { color: var(--accent); }
+.icon-only.spin .ico { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.ret-btn { width: 100%; justify-content: center; }
+.ret-btn.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.j-status { min-height: 16px; }
+.j-status a { color: var(--accent); }
+.j-total { font-size: 13px; padding-top: 10px; border-top: 1px solid var(--line); }
+.j-money { color: var(--accent); font-weight: 800; }
+
+/* Mileage page */
+.mile-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.mile-totals { display: flex; gap: 28px; padding: 14px 20px; flex-wrap: wrap; align-items: flex-end; }
+.mile-big { font-size: 24px; font-weight: 800; }
+.mile-big small { font-size: 13px; color: var(--ink-dim); }
+.mile-big.accent { color: var(--accent); }
+.mile-rate { flex-basis: 100%; margin-top: -6px; }
+.mile-table td { vertical-align: middle; }
+.fy-row { background: var(--panel-2); cursor: pointer; }
+.fy-row td { padding-top: 10px; padding-bottom: 10px; }
+.fy-row .chev { width: 15px; height: 15px; vertical-align: -3px; transition: transform 0.15s ease; transform: rotate(-90deg); }
+.fy-row .chev.open { transform: none; }
+.route-cell { font-size: 13px; font-weight: 600; max-width: 260px; }
+.route-cell .arrow { color: var(--accent); }
+.tag.leg { background: var(--accent-soft); color: var(--accent); }
+.mile-num { font-weight: 800; font-size: 15px; }
+.mile-val { color: var(--accent); font-weight: 800; }
+
+/* Job page journeys */
+.journey { border: 1px solid var(--line); background: var(--panel-2); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+.journey-top { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
+.journey-top .mono { font-weight: 700; }
+.journey-btns { margin-top: 8px; gap: 6px; }
+.journey-btns .icon-only { width: 28px; height: 28px; color: var(--danger); margin-left: auto; }
+.journey-total { text-align: right; font-size: 13px; }
+
 /* Save bar: sits along the bottom on pages you edit */
 .save-bar {
   position: fixed; left: 236px; right: 0; bottom: 0; z-index: 15;
@@ -391,6 +442,9 @@ textarea.field-input { width: 100%; resize: vertical; line-height: 1.45; font-fa
   .ds-totals { width: 100%; }
   .save-bar-inner { padding: 8px 12px; gap: 8px; }
   .fin-stats { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .j-grid3, .j-grid2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .j-grid3 > .field:last-child:nth-child(3) { grid-column: 1 / -1; }
+  .mile-totals { width: 100%; }
   /* Invoice list: each invoice becomes a small card */
   .inv-table thead { display: none; }
   .inv-table, .inv-table tbody { display: block; min-width: 0; }

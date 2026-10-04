@@ -76,57 +76,39 @@ function renderExpenses() {
 }
 
 /* ---------- Mileage ---------- */
-function renderMileageForm(m) {
-  var s = state.data.settings;
-  m = m || { date: todayIso(), jobId: state.mileFromJob || "", from: s.homeAddress, trip: "return" };
-  if (!m.id && m.jobId && !m.to) { var j = jobById(m.jobId); if (j) { m.to = j.venue || ""; m.date = jobStartDate(j) || m.date; } }
-  var places = uniqueValues(state.data.mileage, "from").concat(uniqueValues(state.data.mileage, "to"));
-  if (s.homeAddress) places.unshift(s.homeAddress);
-  var seen = {}; places = places.filter(function (p) { var k = p.toLowerCase(); if (seen[k]) return false; seen[k] = true; return true; });
-  var jobOpts = jobOptions().map(function (o) { return '<option value="' + attr(o.value) + '"' + (o.value === (m.jobId || "") ? " selected" : "") + '>' + escapeHtml(o.label) + '</option>'; }).join("");
-  return '<form class="card entry-form" id="mileageForm" data-id="' + attr(m.id || "") + '">' +
-    '<div class="settings-title">' + (m.id ? "Edit journey" : "New journey") + '</div>' +
-    '<div class="form-grid">' +
-      field("Date", '<input type="date" class="field-input" id="mDate" value="' + attr(m.date) + '" required>') +
-      field("Job", '<select class="field-input" id="mJob">' + jobOpts + '</select>', "span-3") +
-      field("From", '<input class="field-input" id="mFrom" value="' + attr(m.from) + '" list="placeList" placeholder="Postcode or place">', "span-2") +
-      field("To", '<input class="field-input" id="mTo" value="' + attr(m.to) + '" list="placeList" placeholder="Postcode or venue">', "span-2") +
-      field("Miles (one way)", '<input class="field-input" id="mMiles" inputmode="decimal" value="' + attr(m.miles) + '" placeholder="0.0" required>') +
-      field("Journey", '<select class="field-input" id="mTrip"><option value="return"' + (m.trip === "return" ? " selected" : "") + '>Return (counts twice)</option><option value="single"' + (m.trip === "single" ? " selected" : "") + '>One way</option></select>') +
-      field("Note", '<input class="field-input" id="mDesc" value="' + attr(m.desc) + '" placeholder="e.g. Get out">', "span-2") +
-      '<div class="field span-2 check-field"><label class="check-label"><input type="checkbox" id="mBillable"' + (m.billable ? " checked" : "") + '> Charge this mileage to the client at</label></div>' +
-      field("£ per mile", '<input class="field-input" id="mBillRate" inputmode="decimal" value="' + attr(m.billRate || s.mileageBillRate || "0.45") + '">') +
-    '</div>' +
-    '<div class="form-preview" id="mPreview"></div>' +
-    '<datalist id="placeList">' + places.map(function (p) { return '<option value="' + attr(p) + '">'; }).join("") + '</datalist>' +
-    '<div class="btn-row"><button type="submit" class="btn btn-primary">Save journey</button>' + btn("Cancel", "mile-cancel") +
-      '<a class="btn btn-ghost" id="mMapLink" target="_blank" rel="noopener" href="#">Check distance on Google Maps ↗</a></div>' +
-  '</form>';
-}
+// Journeys grouped by tax year (current year open), HMRC value for each.
 function renderMileage() {
-  var y = state.mileYear || currentTaxYear();
-  var info = mileageForYear(y);
-  var s = state.data.settings, threshold = num(s.mileageThreshold) || 10000;
-  var form = state.mileAdding ? renderMileageForm() : state.mileEditingId ? renderMileageForm(byId(state.data.mileage, state.mileEditingId)) : "";
-  var rows = info.rows.slice().reverse().map(function (r) {
-    var m = r.trip, job = jobById(m.jobId);
-    return '<tr><td class="date-cell">' + fmtDate(m.date) + '</td>' +
-      '<td>' + (job ? '<a href="#/jobs/' + encodeURIComponent(job.id) + '">' + escapeHtml(jobLabel(job)) + '</a>' : '<span class="lr-sub">No job</span>') + (m.desc ? '<div class="lr-sub">' + escapeHtml(m.desc) + '</div>' : "") + '</td>' +
-      '<td><div>' + escapeHtml(m.from || "?") + ' → ' + escapeHtml(m.to || "?") + '</div><div class="lr-sub">' + (m.trip === "return" ? "Return" : "One way") + (m.billable ? ' · <span class="mini-tag">' + (m.invoiceId ? "recharged" : "recharge") + '</span>' : "") + '</div></td>' +
-      '<td class="num">' + r.miles + '</td><td class="num">' + money(r.value) + '</td>' +
-      '<td class="actions-cell"><div class="btn-row nowrap"><button class="btn btn-ghost btn-sm" data-action="mile-edit" data-id="' + attr(m.id) + '">Edit</button>' +
-      '<button class="btn btn-ghost btn-sm btn-danger" data-action="mile-del" data-id="' + attr(m.id) + '">✕</button></div></td></tr>';
+  var years = {}, cur = currentTaxYear();
+  state.data.mileage.forEach(function (m) { if (m.date) years[taxYearOf(m.date)] = true; });
+  years[cur] = true;
+  var list = Object.keys(years).map(Number).sort(function (a, b) { return b - a; });
+  var now = mileageForYear(cur), s = state.data.settings, threshold = num(s.mileageThreshold) || 10000;
+  var head = '<div class="mile-head">' +
+      '<div class="mile-totals card"><div><div class="stat-label">Fiscal total ' + taxYearLabel(cur) + '</div><div class="mile-big">' + now.miles.toLocaleString("en-GB", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' <small>mi</small></div></div>' +
+        '<div><div class="stat-label">Reclaim value</div><div class="mile-big accent">' + money(now.value) + '</div></div>' +
+        '<div class="mile-rate lr-sub">' + Math.round(now.rateHigh * 100) + 'p a mile' + (now.miles < threshold ? " for the next " + Math.round(threshold - now.miles).toLocaleString("en-GB") + " miles, then " : " — now at ") + Math.round(now.rateLow * 100) + 'p</div></div>' +
+      '<div class="btn-row">' + btn("＋ Log Journey", "new-mileage", { cls: "btn-primary" }) + '</div></div>';
+  if (!state.data.mileage.length) return head + emptyBlock("No journeys yet", "Log business trips to venues, warehouses and suppliers — the miles are worked out for you. Your normal commute to a permanent workplace doesn't count.", btn("Log Journey", "new-mileage", { cls: "btn-primary" }));
+  state.mileOpen = state.mileOpen || {};
+  var groups = list.map(function (y) {
+    var info = mileageForYear(y), open = state.mileOpen[y] !== undefined ? state.mileOpen[y] : y === cur;
+    if (!info.rows.length && y !== cur) return "";
+    var rows = !open ? "" : info.rows.slice().reverse().map(function (r) {
+      var m = r.trip, job = jobById(m.jobId);
+      return '<tr><td class="date-cell">' + journeyDates(m) + '</td>' +
+        '<td>' + (job ? '<a class="ref-link" href="#/jobs/' + encodeURIComponent(job.id) + '">' + escapeHtml(jobLabel(job)) + '</a>' : "") +
+          (m.desc && (!job || m.desc !== [job.ref, job.title].filter(Boolean).join(" - ")) ? '<div class="' + (job ? "lr-sub" : "") + '">' + escapeHtml(m.desc) + '</div>' : (job ? "" : '<span class="lr-sub">No job</span>')) + '</td>' +
+        '<td class="route-cell">' + escapeHtml(m.from || "?") + ' <span class="arrow">→</span> ' + escapeHtml(m.to || "?") + '</td>' +
+        '<td><span class="tag leg">' + (m.trip === "return" ? "Return" : "One way") + (num(m.trips) > 1 ? " ×" + m.trips : "") + '</span>' + (m.invoiceId ? ' <span class="mini-tag">invoiced</span>' : "") + '</td>' +
+        '<td class="num mile-num">' + r.miles.toFixed(1) + '</td><td class="num mile-val">' + money(r.value) + '</td>' +
+        '<td class="actions-cell"><div class="btn-row nowrap">' + btn("Amend", "mile-edit", { id: m.id, cls: "btn-sm" }) +
+          '<button class="icon-only btn-danger" data-action="mile-del" data-id="' + attr(m.id) + '" title="Delete">' + icon("bin") + '</button></div></td></tr>';
+    }).join("");
+    return '<tbody class="fy-group"><tr class="fy-row" data-action="mile-year" data-id="' + y + '"><td colspan="4">' + icon("chevron", "chev" + (open ? " open" : "")) + ' <b>FY ' + taxYearLabel(y) + '</b>' + (y === cur ? ' <span class="tag ds-sent">Current</span>' : "") +
+      ' <span class="lr-sub">' + info.rows.length + ' journey' + (info.rows.length === 1 ? "" : "s") + '</span></td><td class="num mile-num">' + info.miles.toFixed(1) + '</td><td class="num mile-val">' + money(info.value) + '</td>' +
+      '<td class="actions-cell">' + (info.rows.length ? btn("Export CSV", "export-mileage", { id: String(y), cls: "btn-sm btn-ghost" }) : "") + '</td></tr>' + rows + '</tbody>';
   }).join("");
-  return '<div class="log-toolbar">' + yearSelect("mileYearSel", y) +
-      '<div class="btn-row">' + btn("Export CSV", "export-mileage") + btn("＋ Log journey", "new-mileage", { cls: "btn-primary" }) + '</div></div>' +
-    form +
-    '<div class="stat-grid">' +
-      stat("Business miles " + taxYearLabel(y), info.miles.toLocaleString("en-GB"), info.rows.length + " journey" + (info.rows.length === 1 ? "" : "s")) +
-      stat("You can claim", money(info.value), "HMRC mileage allowance") +
-      stat("Rate", Math.round(info.rateHigh * 100) + "p / mile", info.miles < threshold ? Math.round(threshold - info.miles).toLocaleString("en-GB") + " miles left at this rate, then " + Math.round(info.rateLow * 100) + "p" : "Now at " + Math.round(info.rateLow * 100) + "p (over " + threshold.toLocaleString("en-GB") + " miles)") +
-    '</div>' +
-    (rows ? '<div class="card log-table-wrap"><table class="log-table"><thead><tr><th>Date</th><th>Job</th><th>Route</th><th class="num">Miles</th><th class="num">Claim</th><th class="actions-col"></th></tr></thead><tbody>' + rows + '</tbody></table></div>'
-      : (form ? "" : emptyBlock("No journeys in " + taxYearLabel(y), "Log business trips to venues, warehouses and suppliers. Your normal commute to a permanent workplace doesn't count.", btn("Log journey", "new-mileage", { cls: "btn-primary" }))));
+  return head + '<div class="card log-table-wrap"><div class="table-scroll"><table class="log-table mile-table"><thead><tr><th>Date</th><th>Description</th><th>Route</th><th>Leg</th><th class="num">Total mi</th><th class="num">Valuation</th><th class="actions-col">Actions</th></tr></thead>' + groups + '</table></div></div>';
 }
 
 /* ---------- Reports ---------- */
@@ -228,7 +210,7 @@ function renderSettings() {
       field("Threshold (miles a tax year)", bound(id, id, "mileageThreshold", s.mileageThreshold, { num: true, type: "number" }), "span-2") +
       field("Rate up to threshold (£/mile)", bound(id, id, "mileageRateHigh", s.mileageRateHigh, { num: true })) +
       field("Rate after threshold (£/mile)", bound(id, id, "mileageRateLow", s.mileageRateLow, { num: true })) +
-      field("Default charge to clients (£/mile)", bound(id, id, "mileageBillRate", s.mileageBillRate || 0.45, { num: true }), "span-2") +
+      field("Charge clients per mile (£) — leave blank to use the HMRC rate", bound(id, id, "mileageBillRate", s.mileageBillRate || "", { num: true, placeholder: "HMRC rate (" + Math.round(rateHighFor(currentTaxYear()) * 100) + "p)" }), "span-2") +
     '</div>');
   var categories = sec("Expense categories", "Each category is linked to the HMRC category it’s reported under.", catRows +
       '<div class="btn-row category-add">' + btn("＋ Add category", "cat-add", { cls: "btn-sm" }) + '</div>');

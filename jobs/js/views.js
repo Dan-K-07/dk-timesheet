@@ -30,6 +30,8 @@ var ICONS = {
   pencil: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
   chevron: '<path d="M6 9l6 6 6-6"/>',
+  refresh: '<path d="M20 11a8 8 0 0 0-14.6-4.5L4 8M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.6 4.5L20 16M20 20v-4h-4"/>',
+  pin: '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
   mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
   phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
@@ -86,11 +88,9 @@ window.addEventListener("hashchange", function () {
   state.projectNaming = false;
   var pending = state.pendingForm; state.pendingForm = null;
   if (pending === "expense") state.expAdding = true;
-  if (pending === "mileage") state.mileAdding = true;
   render();
   window.scrollTo(0, 0);
   if (pending === "expense") focusForm("expAmount");
-  if (pending === "mileage") { updateMileagePreview(); focusForm("mMiles"); }
 });
 // Links (sidebar, back links, Open Timesheet) ask first if there are unsaved changes.
 document.addEventListener("click", function (ev) {
@@ -573,10 +573,18 @@ function renderJobPage(id) {
           : '<div class="lr-sub">No clients yet.</div>') +
           '<div class="btn-row side-btns">' + btn("＋ New client", "job-new-client", { id: j.id, cls: "btn-sm" }) + '</div>') +
     '</div>' +
-    '<div class="card side-card"><div class="side-head"><span class="side-title">Mileage</span>' + btn("＋ Add", "new-mileage", { id: j.id, cls: "btn-sm" }) + '</div>' +
+    '<div class="card side-card"><div class="side-head"><span class="side-title">Mileage</span>' + btn("＋ Add Mileage", "new-mileage", { id: j.id, cls: "btn-sm btn-primary" }) + '</div>' +
       (miles.length ? miles.map(function (m) {
-        return '<div class="side-line"><span>' + fmtDate(m.date) + ' · ' + escapeHtml(m.to || m.desc || "Trip") + '</span><span class="mono">' + tripMiles(m) + ' mi</span></div>';
-      }).join("") : '<div class="lr-sub">No journeys linked yet.</div>') + '</div>' +
+        var y = taxYearOf(m.date), value = mileageForYear(y).rows.filter(function (r) { return r.trip === m; })[0];
+        var added = journeyOnItems(m) || m.invoiceId || m.billable;
+        return '<div class="journey"><div class="journey-top"><div><b>' + escapeHtml(m.desc || journeyDates(m)) + '</b>' +
+            '<div class="lr-sub">' + escapeHtml([m.from, m.to].filter(Boolean).join(" → ")) + '</div>' +
+            '<div class="lr-sub">' + journeyDates(m) + ' · ' + tripMiles(m) + ' mi · ' + (m.trip === "return" ? "return" : "one way") + (num(m.trips) > 1 ? " ×" + m.trips : "") + '</div></div>' +
+            '<span class="mono">' + money(value ? value.value : 0) + '</span></div>' +
+          '<div class="btn-row journey-btns">' + (added ? '<span class="tag ds-paid">' + (m.invoiceId ? "Invoiced" : "Added") + '</span>' : btn("＋ Add to Items", "mile-add-item", { id: m.id, cls: "btn-sm btn-primary" })) +
+            btn("Amend", "mile-edit", { id: m.id, cls: "btn-sm" }) + '<button class="icon-only btn-danger" data-action="mile-del" data-id="' + attr(m.id) + '" title="Delete">' + icon("bin") + '</button></div></div>';
+      }).join("") + '<div class="journey-total">Total: <b>' + round2(miles.reduce(function (s, m) { return s + tripMiles(m); }, 0)) + ' mi</b></div>'
+        : '<div class="lr-sub">No journeys linked yet.</div>') + '</div>' +
     '<div class="card side-card"><div class="side-head"><span class="side-title">Expenses</span>' + btn("＋ Add", "new-expense", { id: j.id, cls: "btn-sm" }) + '</div>' +
       (exps.length ? exps.map(function (e) {
         return '<div class="side-line"><span>' + escapeHtml(e.merchant || e.desc || e.category) + (e.billable ? ' <span class="mini-tag">' + (e.invoiceId ? "recharged" : "recharge") + '</span>' : "") + '</span><span class="mono">' + money(e.amount) + '</span></div>';
