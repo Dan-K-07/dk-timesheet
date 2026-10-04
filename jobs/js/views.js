@@ -443,9 +443,10 @@ var JOB_FILTERS = [
   { key: "all", label: "All", test: function () { return true; } }
 ].concat(JOB_STATUSES.map(function (s) { return { key: s, label: s, test: function (j) { return j.status === s; } }; }));
 
+function jobsImportInput() { return '<input type="file" id="jobsImportFile" accept=".csv,text/csv" hidden>'; }
 function renderJobs() {
   var jobs = state.data.jobs;
-  if (!jobs.length) return emptyBlock("No jobs yet", "Add a job, then add costs, mileage and invoice it from there.", btn("New job", "new-job", { cls: "btn-primary" }));
+  if (!jobs.length) return emptyBlock("No jobs yet", "Add a job, then add costs, mileage and invoice it from there. Moving from another system? Import its jobs CSV.", btn("New job", "new-job", { cls: "btn-primary" }) + btn("Import CSV", "import-jobs")) + jobsImportInput();
   var f = JOB_FILTERS.filter(function (x) { return x.key === state.jobFilter; })[0] || JOB_FILTERS[0];
   var q = state.jobSearch.toLowerCase();
   var list = jobs.filter(f.test).filter(function (j) {
@@ -469,7 +470,7 @@ function renderJobs() {
   }).join("");
   return '<div class="log-toolbar">' +
       '<input type="search" class="field-input search-input" id="jobSearch" placeholder="Search jobs, venues, clients, PO" value="' + attr(state.jobSearch) + '">' +
-      '<div class="btn-row">' + btn("Export CSV", "export-jobs") + btn("＋ New job", "new-job", { cls: "btn-primary" }) + '</div>' +
+      '<div class="btn-row">' + btn("Import CSV", "import-jobs") + btn("Export CSV", "export-jobs") + btn("＋ New job", "new-job", { cls: "btn-primary" }) + '</div>' + jobsImportInput() +
     '</div>' + chips +
     '<div class="card log-table-wrap"><table class="log-table"><thead><tr><th>Date</th><th>Job</th><th>Client</th><th>Status</th><th class="num">Value</th></tr></thead><tbody>' +
     (rows || '<tr><td colspan="5" class="list-empty">No jobs match.</td></tr>') + '</tbody></table></div>';
@@ -507,7 +508,7 @@ function renderJobPage(id) {
     var locked = !!it.invoiceId;
     var inv = locked ? byId(state.data.invoices, it.invoiceId) : null;
     return '<tr' + (locked ? ' class="locked"' : "") + '>' +
-      '<td>' + (locked ? escapeHtml(it.desc) + '<div class="lr-sub">On ' + escapeHtml(inv ? inv.number : "an invoice") + '</div>' : bound("job-items", j.id, "desc", it.desc, { sub: it.id, placeholder: "Description" })) + '</td>' +
+      '<td>' + (locked ? escapeHtml(it.desc) + '<div class="lr-sub">' + (it.invoiceId === "old-system" ? "Invoiced in your old system" : "On " + escapeHtml(inv ? inv.number : "an invoice")) + '</div>' : bound("job-items", j.id, "desc", it.desc, { sub: it.id, placeholder: "Description" })) + '</td>' +
       '<td class="qty-cell">' + (locked ? it.qty : bound("job-items", j.id, "qty", it.qty, { sub: it.id, num: true, cls: "num-input" })) + '</td>' +
       '<td class="price-cell">' + (locked ? money(it.price) : bound("job-items", j.id, "price", it.price, { sub: it.id, num: true, cls: "num-input" })) + '</td>' +
       '<td class="num" data-line-total="' + attr(it.id) + '">' + money(lineNet(it)) + '</td>' +
@@ -530,9 +531,10 @@ function renderJobPage(id) {
         field("Client", bound("job", j.id, "clientId", j.clientId, { type: "select", options: clientOptions(true), rerender: true })) +
         field("Status", bound("job", j.id, "status", j.status, { type: "select", options: JOB_STATUSES, rerender: true })) +
         field("Venue / location", bound("job", j.id, "venue", j.venue), "span-2") +
-        (j.clientId ? field("Project", bound("job", j.id, "projectId", j.projectId || "", { type: "select", rerender: true,
-          options: [{ value: "", label: "— Not in a project —" }].concat(state.data.projects.filter(function (p) { return p.clientId === j.clientId; })
-            .map(function (p) { return { value: p.id, label: p.name }; })) }), "span-2") : "") +
+        // Before a client is chosen this lists every project (with its client); picking one fills in the client.
+        field("Project", bound("job", j.id, "projectId", j.projectId || "", { type: "select", rerender: true,
+          options: [{ value: "", label: "— Not in a project —" }].concat(state.data.projects.filter(function (p) { return !j.clientId || p.clientId === j.clientId; })
+            .map(function (p) { return { value: p.id, label: p.name + (j.clientId ? "" : " (" + clientName(p.clientId) + ")") }; })) }), "span-2") +
         field("Purchase order", bound("job", j.id, "po", j.po)) +
         field("Payment terms (days)", bound("job", j.id, "terms", j.terms, { num: true, type: "number", placeholder: String(state.data.settings.paymentTerms) })) +
         field("Description shown on quotes and invoices", bound("job", j.id, "summary", j.summary, { type: "textarea", rows: 2 }), "full") +
