@@ -1,14 +1,14 @@
 "use strict";
 
 /* =====================================================================
-   DK Jobs - expenses: the Add / Edit Expense popup (with receipt upload
-   and AI scan), viewing receipts, subscriptions that log themselves, and
+   DK Jobs - expenses: the Add / Edit Expense popup (with receipt upload),
+   viewing receipts, subscriptions that log themselves, and
    downloading all receipts as a zip.
    ===================================================================== */
 
 /* ---------- Receipt files ---------- */
 // Photos are shrunk to a sensible size (and iPhone HEIC turned into JPEG)
-// before upload: quicker, cheaper to scan, and still easy to read.
+// before upload: quicker to upload, and still easy to read.
 function prepareReceiptFile(file) {
   if (!/^image\//.test(file.type) || /gif$/.test(file.type)) return Promise.resolve(file);
   return new Promise(function (resolve) {
@@ -49,21 +49,6 @@ function viewReceipt(e) {
     box.innerHTML = isPdf ? '<iframe src="' + attr(u) + '" title="Receipt"></iframe>' : '<img src="' + attr(u) + '" alt="Receipt">';
   }).catch(function (err) {
     var box = document.getElementById("receiptView"); if (box) box.innerHTML = '<div class="lr-sub">Couldn\'t open the receipt (' + escapeHtml(errMessage(err)) + ').</div>';
-  });
-}
-
-/* ---------- AI receipt scan (Supabase Edge Function "scan-receipt") ---------- */
-function aiScanOn() { return state.data.settings.aiScan !== false; }
-function scanReceipt(path) {
-  var cats = state.data.settings.expenseCategories.map(function (c) { return c.name; });
-  return sbClient.functions.invoke("scan-receipt", { body: { path: path, categories: cats } }).then(function (r) {
-    if (r.error) {
-      var msg = r.error.context && r.error.context.status === 404 ? "not-set-up" : errMessage(r.error);
-      if (/not found|404|FunctionsFetchError|Failed to send/i.test(errMessage(r.error))) msg = "not-set-up";
-      throw new Error(msg);
-    }
-    if (!r.data || !r.data.result) throw new Error((r.data && r.data.error) || "No answer");
-    return r.data.result;
   });
 }
 
@@ -114,8 +99,8 @@ function openExpense(e, opts) {
   function paintReceipt() {
     var box = $("rcptBox"); if (!box) return;
     var has = (R.newPath || R.file || ((R.path || R.url) && !R.removed));
-    if (R.status === "uploading" || R.status === "scanning") {
-      box.innerHTML = '<div class="rcpt-box busy">' + icon("refresh", "spin-ico") + ' ' + (R.status === "uploading" ? "Uploading…" : "Scanning receipt…") + '</div>';
+    if (R.status === "uploading") {
+      box.innerHTML = '<div class="rcpt-box busy">' + icon("refresh", "spin-ico") + ' Uploading…</div>';
       return;
     }
     if (!has) {
@@ -123,11 +108,7 @@ function openExpense(e, opts) {
       $("rcptPick").addEventListener("click", function () { $("rcptFile").click(); });
       return;
     }
-    var note = R.status === "scanned" ? '<span class="scan-ok">' + icon("sparkle") + ' AI scan complete — check the details</span>'
-      : R.status === "scan-off" ? '<span class="lr-sub">AI scan is switched off in Settings</span>'
-      : R.status === "not-set-up" ? '<span class="lr-sub">AI scan isn\'t set up yet — see Settings</span>'
-      : R.status === "scan-failed" ? '<span class="lr-sub">Couldn\'t read it automatically — fill the details in</span>'
-      : R.file ? '<span class="lr-sub">Saved with the expense when you\'re back online</span>' : "";
+    var note = R.file ? '<span class="lr-sub">Saved with the expense when you\'re back online</span>' : "";
     box.innerHTML = '<div class="rcpt-box">' + icon("file") + '<div><b>' + (R.file ? "Receipt attached" : "Receipt uploaded") + '</b>' +
       '<div class="rcpt-links">' + (R.file ? "" : '<button type="button" class="link-add" id="rcptView">View →</button>') + note + '</div></div>' +
       '<button type="button" class="icon-only" id="rcptRemove" title="Remove receipt">✕</button></div>';
@@ -140,35 +121,17 @@ function openExpense(e, opts) {
       R.file = null; R.removed = true; R.status = ""; paintReceipt();
     });
   }
-  function fillFromScan(x) {
-    if (x.is_receipt === false) { toast("That doesn't look like a receipt — fill the details in yourself."); return; }
-    if (x.date && /^\d{4}-\d{2}-\d{2}$/.test(x.date)) $("xDate").value = x.date;
-    if (x.merchant) $("xMerchant").value = x.merchant;
-    if (num(x.total)) $("xAmount").value = round2(num(x.total)).toFixed(2);
-    if ($("xVat") && num(x.vat)) $("xVat").value = round2(num(x.vat)).toFixed(2);
-    if (x.description) $("xDesc").value = x.description;
-    if (x.category) {
-      var o = Array.prototype.filter.call($("xCategory").options, function (op) { return op.value.toLowerCase() === String(x.category).toLowerCase(); })[0];
-      if (o) $("xCategory").value = o.value;
-    }
-    if (x.currency && !/^gbp$/i.test(x.currency)) toast("This receipt is in " + x.currency + " — convert the total to pounds.");
-  }
   $("rcptFile").addEventListener("change", async function () {
     var f = this.files[0]; this.value = ""; if (!f) return;
     if (R.newPath) { deleteReceipt(R.newPath); R.newPath = ""; }
     var file = await prepareReceiptFile(f);
     if (!state.user) { R.file = file; R.removed = false; R.status = ""; paintReceipt(); return; }
     R.status = "uploading"; paintReceipt();
-    try { R.newPath = await uploadReceipt(file, R.id); R.removed = false; }
-    catch (err) { R.status = ""; R.file = file; paintReceipt(); toast("Upload failed (" + errMessage(err) + ") — it'll be tried again when you save."); return; }
-    if (!aiScanOn()) { R.status = "scan-off"; paintReceipt(); return; }
-    R.status = "scanning"; paintReceipt();
-    try { fillFromScan(await scanReceipt(R.newPath)); R.status = "scanned"; }
-    catch (err) { R.status = errMessage(err) === "not-set-up" ? "not-set-up" : "scan-failed"; }
+    try { R.newPath = await uploadReceipt(file, R.id); R.removed = false; R.status = ""; }
+    catch (err) { R.status = ""; R.file = file; toast("Upload failed (" + errMessage(err) + ") — it'll be tried again when you save."); }
     if ($("rcptBox")) paintReceipt();
   });
   paintReceipt();
-  if (opts.pick) $("rcptFile").click(); // "Scan Receipt" goes straight to choosing the file
 }
 function dropUnsavedReceipt(R) { if (R.newPath) { deleteReceipt(R.newPath); R.newPath = ""; } }
 async function saveExpenseModal(e, editing, R, another) {
@@ -178,7 +141,7 @@ async function saveExpenseModal(e, editing, R, another) {
   if (!g("xMerchant")) { toast("Add the merchant or supplier."); document.getElementById("xMerchant").focus(); return false; }
   if (!amount) { toast("Add the total."); document.getElementById("xAmount").focus(); return false; }
   if (e.invoiceId && round2(num(e.amount)) !== amount) { toast("This expense is on an invoice — the amount can't change."); return false; }
-  if (R.status === "uploading" || R.status === "scanning") { toast("Hang on — the receipt is still " + R.status + "."); return false; }
+  if (R.status === "uploading") { toast("Hang on — the receipt is still uploading."); return false; }
   if (R.file) {
     try { R.newPath = await uploadReceipt(R.file, R.id); R.file = null; }
     catch (err) { toast("The receipt couldn't be uploaded (" + errMessage(err) + "). Save without it, or try again when you're online."); return false; }

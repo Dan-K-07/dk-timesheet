@@ -39,7 +39,7 @@ function renderExpenses() {
   '</div>';
 
   var head = '<div class="exp-actions btn-row">' + btn("Export CSV", "export-expenses", { id: String(cur) }) + btn("Export Receipts", "export-receipts", { id: String(cur) }) +
-      btn("Import CSV", "import-expenses") + btn(icon("camera") + " Scan Receipt", "scan-receipt") + btn("＋ Add Expense", "new-expense", { cls: "btn-primary" }) +
+      btn("Import CSV", "import-expenses") + btn("＋ Add Expense", "new-expense", { cls: "btn-primary" }) +
       '<input type="file" id="expImportFile" accept=".csv,text/csv" hidden></div>';
   var stats = '<div class="card exp-stats">' +
       '<div><div class="stat-label">Total business costs ' + taxYearLabel(cur) + '</div><div class="mile-big">' + money(total) + '</div><div class="lr-sub">incl. subscriptions</div></div>' +
@@ -53,7 +53,7 @@ function renderExpenses() {
       return '<button class="chip' + (c === cat ? " active" : "") + '" data-action="exp-cat" data-id="' + attr(c) + '">' + escapeHtml(c || "All") + '</button>';
     }).join("") + '</div></div>';
 
-  if (!d.expenses.length) return subsCard + head + stats + emptyBlock("No expenses yet", "Add business costs as you go — snap the receipt and it's read for you. Moving from another system? Import its expenses CSV.", btn("Add Expense", "new-expense", { cls: "btn-primary" }) + btn("Scan Receipt", "scan-receipt"));
+  if (!d.expenses.length) return subsCard + head + stats + emptyBlock("No expenses yet", "Add business costs as you go, with a photo or PDF of the receipt. Moving from another system? Import its expenses CSV.", btn("Add Expense", "new-expense", { cls: "btn-primary" }));
   var years = {}; d.expenses.forEach(function (e) { if (e.date) years[taxYearOf(e.date)] = true; }); years[cur] = true;
   state.expOpen = state.expOpen || {};
   var groups = Object.keys(years).map(Number).sort(function (a, b) { return b - a; }).map(function (y) {
@@ -221,8 +221,6 @@ function renderSettings() {
       field("Rate after threshold (£/mile)", bound(id, id, "mileageRateLow", s.mileageRateLow, { num: true })) +
       field("Charge clients per mile (£) — leave blank to use the HMRC rate", bound(id, id, "mileageBillRate", s.mileageBillRate || "", { num: true, placeholder: "HMRC rate (" + Math.round(rateHighFor(currentTaxYear()) * 100) + "p)" }), "span-2") +
     '</div>');
-  var aiScan = sec("Receipt scanning (AI)", "When you upload a receipt it's read for you, and the date, supplier, total, category and description are filled in. Uses Claude through your own Supabase function — about 1–3p per receipt. Setup steps are at the top of supabase/functions/scan-receipt/index.ts.",
-    '<div class="form-grid"><div class="field span-2 check-field"><label class="check-label">' + bound(id, id, "aiScan", s.aiScan !== false, { type: "checkbox" }) + ' Scan receipts automatically when I upload them</label></div></div>');
   var categories = sec("Expense categories", "Each category is linked to the HMRC category it’s reported under.", catRows +
       '<div class="btn-row category-add">' + btn("＋ Add category", "cat-add", { cls: "btn-sm" }) + '</div>');
   var backup = '<div class="card settings-card backup-card"><div><div class="settings-title">Backup</div>' +
@@ -232,6 +230,6 @@ function renderSettings() {
   // Backup across the bottom.
   return '<div class="settings-grid">' +
       '<div class="settings-col">' + business + quotes + tax + mileage + '</div>' +
-      '<div class="settings-col">' + bank + aiScan + categories + '</div>' +
+      '<div class="settings-col">' + bank + categories + '</div>' +
     '</div>' + backup;
 }

@@ -412,8 +412,6 @@ textarea.field-input { width: 100%; resize: vertical; line-height: 1.45; font-fa
 .rcpt-box > div { flex: 1; min-width: 0; }
 .rcpt-box.busy { background: var(--panel-2); color: var(--ink-dim); font-weight: 600; justify-content: center; padding: 14px; }
 .rcpt-links { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-size: 12.5px; }
-.scan-ok { color: var(--accent); font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
-.scan-ok .ico { width: 14px; height: 14px; }
 .spin-ico { width: 16px; height: 16px; animation: spin 0.9s linear infinite; }
 .toggle-row { display: flex; align-items: center; gap: 12px; cursor: pointer; }
 .toggle-row input { position: absolute; opacity: 0; pointer-events: none; }

@@ -458,9 +458,8 @@ var ACTIONS = {
     });
   },
   "new-client": function () { guardLeave(newClient); },
-  // Add Expense / Scan Receipt popups, from anywhere (on a job page they're linked to that job).
+  // Add Expense popup, from anywhere (on a job page they're linked to that job).
   "new-expense": function (id) { openExpense(null, { jobId: id || (state.route.tab === "jobs" ? state.route.id : "") }); },
-  "scan-receipt": function (id) { openExpense(null, { pick: true, jobId: id || (state.route.tab === "jobs" ? state.route.id : "") }); },
   // Log Journey popup, from anywhere (on a job page it's linked to that job).
   "new-mileage": function (id) { openJourney(null, id || (state.route.tab === "jobs" ? state.route.id : "")); },
   "save": function () { saveAll().then(function (ok) { if (ok) render(); }); },
