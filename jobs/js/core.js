@@ -7,7 +7,7 @@
    to the other.
    ===================================================================== */
 
-var JOBS_VERSION = "1.7.0"; // bump this whenever you change the Jobs app
+var JOBS_VERSION = "2.0.1"; // bump this whenever you change the Jobs app
 var SUPABASE_URL = "https://axiqpqjquywvzymmzwgr.supabase.co";
 var SUPABASE_ANON_KEY = "sb_publishable_gO1jSR_OETTKmwCz-hEb3w_JUYS1tik";
 var AUTH_STORAGE_KEY = "dk_timesheet_auth_v1"; // shared with the timesheet
@@ -75,7 +75,7 @@ function defaultSettings() {
   };
 }
 function emptyData() {
-  return { clients: [], jobs: [], projects: [], products: [], invoices: [], expenses: [], mileage: [], settings: defaultSettings() };
+  return { clients: [], jobs: [], projects: [], products: [], invoices: [], expenses: [], mileage: [], subscriptions: [], settings: defaultSettings() };
 }
 
 /* ============ State ============ */
@@ -157,7 +157,7 @@ function byId(list, id) { for (var i = 0; i < list.length; i++) if (list[i].id =
 function normaliseData(d) {
   var base = emptyData();
   d = d && typeof d === "object" ? d : {};
-  ["clients", "jobs", "projects", "products", "invoices", "expenses", "mileage"].forEach(function (k) {
+  ["clients", "jobs", "projects", "products", "invoices", "expenses", "mileage", "subscriptions"].forEach(function (k) {
     base[k] = Array.isArray(d[k]) ? d[k] : [];
   });
   // Clients used to have one contact name; now they have a list of contacts.
@@ -370,7 +370,7 @@ function handleAuthEvent(event, session) {
 }
 function enterOfflineMode() {
   state.authChecking = false; state.authed = true; state.syncStatus = "error";
-  render();
+  render(); runSubscriptions();
   toast("Couldn't reach sync — showing your last saved data.");
 }
 async function startSession(user) {
@@ -399,7 +399,7 @@ async function startSession(user) {
     toast("Couldn't reach sync (" + errMessage(e) + ") — showing your last saved data.");
   }
   state.startingSession = false;
-  render();
+  render(); runSubscriptions();
 }
 function endSession() {
   if (realtimeChannel) { try { sbClient.removeChannel(realtimeChannel); } catch (e) {} realtimeChannel = null; }
