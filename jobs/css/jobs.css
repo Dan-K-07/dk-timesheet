@@ -314,9 +314,121 @@ textarea.field-input { width: 100%; resize: vertical; line-height: 1.45; font-fa
 .import-preview .log-table { min-width: 0; width: 100%; font-size: 12.5px; margin-bottom: 6px; }
 .import-preview .log-table td, .import-preview .log-table th { padding: 6px 6px; }
 .import-preview .nowrap { white-space: nowrap; }
+.import-note { background: var(--accent-soft); color: var(--accent); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; margin: 8px 0; }
 .import-warn { background: var(--onsite-bg); color: var(--onsite); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; font-weight: 600; margin: 8px 0; }
 .import-check { align-items: flex-start !important; margin-top: 10px !important; font-size: 13px !important; line-height: 1.4; }
 .import-check input { margin-top: 2px; }
+/* Log / Amend Journey popup */
+.modal-card:has(.journey-form) { max-width: 640px; text-align: left; }
+.modal-card:has(.journey-form) .modal-title { margin-bottom: 14px; }
+.journey-form { gap: 12px; }
+.j-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.j-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.journey-form .field { margin: 0; }
+.place-wrap { position: relative; }
+.place-list { display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 5; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); overflow: hidden; }
+.place-list.open { display: block; }
+.place-opt { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: none; padding: 8px 10px; font: inherit; font-size: 13px; color: var(--ink); text-align: left; cursor: pointer; }
+.place-opt:hover { background: var(--panel-2); }
+.place-opt .ico { width: 14px; height: 14px; color: var(--ink-dim); }
+.miles-wrap { display: flex; gap: 4px; align-items: center; }
+.miles-wrap .field-input { flex: 1; min-width: 0; background: var(--accent-soft); font-weight: 700; }
+.miles-wrap .icon-only { color: var(--accent); }
+.icon-only.spin .ico { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.ret-btn { width: 100%; justify-content: center; }
+.ret-btn.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.j-status { min-height: 16px; }
+.j-status a { color: var(--accent); }
+.j-total { font-size: 13px; padding-top: 10px; border-top: 1px solid var(--line); }
+.j-money { color: var(--accent); font-weight: 800; }
+
+/* Mileage page */
+.mile-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.mile-totals { display: flex; gap: 28px; padding: 14px 20px; flex-wrap: wrap; align-items: flex-end; }
+.mile-big { font-size: 24px; font-weight: 800; }
+.mile-big small { font-size: 13px; color: var(--ink-dim); }
+.mile-big.accent { color: var(--accent); }
+.mile-rate { flex-basis: 100%; margin-top: -6px; }
+.mile-table td { vertical-align: middle; }
+.fy-row { background: var(--panel-2); cursor: pointer; }
+.fy-row td { padding-top: 10px; padding-bottom: 10px; }
+.fy-row .chev { width: 15px; height: 15px; vertical-align: -3px; transition: transform 0.15s ease; transform: rotate(-90deg); }
+.fy-row .chev.open { transform: none; }
+.route-cell { font-size: 13px; font-weight: 600; max-width: 260px; }
+.route-cell .arrow { color: var(--accent); }
+.tag.leg { background: var(--accent-soft); color: var(--accent); }
+.mile-num { font-weight: 800; font-size: 15px; }
+.mile-val { color: var(--accent); font-weight: 800; }
+
+/* Job page journeys */
+.journey { border: 1px solid var(--line); background: var(--panel-2); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+.journey-top { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
+.journey-top .mono { font-weight: 700; }
+.journey-btns { margin-top: 8px; gap: 6px; }
+.journey-btns .icon-only { width: 28px; height: 28px; color: var(--danger); margin-left: auto; }
+.journey-total { text-align: right; font-size: 13px; }
+
+/* Expenses page */
+.subs-card { padding: 14px 18px; margin-bottom: 14px; }
+.subs-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; }
+.subs-head .chev { width: 16px; height: 16px; color: var(--ink-dim); transition: transform 0.15s ease; transform: rotate(-90deg); }
+.subs-head .chev.open { transform: none; }
+.sub-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); margin-top: 10px; }
+.sub-row + .sub-row { margin-top: 0; }
+.sub-row.ended { opacity: 0.6; }
+.sub-empty { margin-top: 10px; }
+.exp-actions { justify-content: flex-end; margin-bottom: 14px; }
+.exp-actions .btn { display: inline-flex; align-items: center; gap: 6px; }
+.exp-actions .ico { width: 16px; height: 16px; }
+.exp-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 16px 20px; margin-bottom: 14px; text-align: center; }
+.exp-stats > div + div { border-left: 1px solid var(--line); }
+.exp-stats .mile-big small { font-size: 12px; color: var(--ink-dim); font-weight: 600; }
+.exp-filter { padding: 12px 14px; margin-bottom: 14px; }
+.exp-filter .search-input { width: 100%; margin-bottom: 10px; }
+.exp-filter .chips { margin: 0; }
+.tag.cat-pill { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); font-weight: 600; }
+.exp-table td { vertical-align: middle; }
+.exp-merchant { font-weight: 700; min-width: 120px; }
+.exp-merchant .ico { width: 11px; height: 11px; vertical-align: -1px; }
+.exp-desc { min-width: 160px; font-size: 13px; }
+.rcpt-link { font-size: 12px; display: inline-flex; align-items: center; gap: 3px; }
+.rcpt-link .ico { width: 12px; height: 12px; }
+.no-rcpt { font-size: 11px; }
+
+/* Add / Edit Expense popup */
+.modal-card:has(.exp-form) { max-width: 640px; text-align: left; }
+.modal-card:has(.exp-form) .modal-title { margin-bottom: 14px; }
+.modal-card:has(.exp-form) .modal-btns { flex-direction: row-reverse; flex-wrap: wrap; }
+.modal-card:has(.exp-form) .modal-btn { width: auto; flex: 1 1 150px; }
+.exp-form { gap: 12px; }
+.exp-form .field { margin: 0; }
+.exp-form .hint { margin-top: 3px; font-size: 11px; }
+.rcpt-drop { width: 100%; border: 1.5px dashed var(--line); background: var(--panel-2); color: var(--accent); border-radius: 12px; padding: 14px; font: inherit; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.rcpt-drop:hover { border-color: var(--accent); }
+.rcpt-drop .ico { width: 18px; height: 18px; }
+.rcpt-box { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--holiday-bg); }
+.rcpt-box > .ico { width: 26px; height: 26px; color: var(--holiday); flex-shrink: 0; }
+.rcpt-box > div { flex: 1; min-width: 0; }
+.rcpt-box.busy { background: var(--panel-2); color: var(--ink-dim); font-weight: 600; justify-content: center; padding: 14px; }
+.rcpt-links { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-size: 12.5px; }
+.spin-ico { width: 16px; height: 16px; animation: spin 0.9s linear infinite; }
+.toggle-row { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.toggle-row input { position: absolute; opacity: 0; pointer-events: none; }
+.toggle { width: 38px; height: 22px; border-radius: 999px; background: var(--line); position: relative; flex-shrink: 0; transition: background 0.15s ease; }
+.toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.15s ease; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+.toggle-row input:checked + .toggle { background: var(--accent); }
+.toggle-row input:checked + .toggle::after { transform: translateX(16px); }
+.toggle-row input:focus-visible + .toggle { box-shadow: 0 0 0 3px var(--accent-soft); }
+.toggle-row > span:last-child { display: flex; flex-direction: column; font-size: 13.5px; }
+/* Receipt viewer */
+.modal-card:has(.receipt-view) { max-width: 820px; }
+.receipt-view { height: min(70vh, 900px); margin-bottom: 14px; border: 1px solid var(--line); border-radius: 10px; overflow: auto; background: #fff; display: flex; align-items: flex-start; justify-content: center; }
+.receipt-view iframe { width: 100%; height: 100%; border: none; }
+.receipt-view img { max-width: 100%; height: auto; display: block; }
+.receipt-view .lr-sub { padding: 20px; }
+.modal-card:has(.receipt-view) .modal-btns { flex-direction: row; }
+
 /* Save bar: sits along the bottom on pages you edit */
 .save-bar {
   position: fixed; left: 236px; right: 0; bottom: 0; z-index: 15;
@@ -391,6 +503,12 @@ textarea.field-input { width: 100%; resize: vertical; line-height: 1.45; font-fa
   .ds-totals { width: 100%; }
   .save-bar-inner { padding: 8px 12px; gap: 8px; }
   .fin-stats { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .exp-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .exp-stats > div:nth-child(3) { border-left: none; }
+  .exp-actions { justify-content: flex-start; }
+  .j-grid3, .j-grid2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .j-grid3 > .field:last-child:nth-child(3) { grid-column: 1 / -1; }
+  .mile-totals { width: 100%; }
   /* Invoice list: each invoice becomes a small card */
   .inv-table thead { display: none; }
   .inv-table, .inv-table tbody { display: block; min-width: 0; }

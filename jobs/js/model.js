@@ -126,7 +126,8 @@ function jobUninvoiced(j) {
 }
 
 /* ---------- Mileage ---------- */
-function tripMiles(m) { return round2(num(m.miles) * (m.trip === "return" ? 2 : 1)); }
+// Total miles for a journey: one-way miles, doubled if it's a return, times the number of trips.
+function tripMiles(m) { return round2(num(m.miles) * (m.trip === "return" ? 2 : 1) * Math.max(1, parseInt(m.trips, 10) || 1)); }
 // The first-rate per mile for a tax year. HMRC raised it from 45p to
 // 55p from 6 April 2026; Settings can change the current rates.
 function rateHighFor(y) { return y >= 2026 ? num(state.data.settings.mileageRateHigh) : 0.45; }

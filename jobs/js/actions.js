@@ -227,6 +227,109 @@ function previewJobImport(text) {
     ]
   });
 }
+/* Expenses import, from the old system's CSV:
+   Date, Merchant, Description, Category, Amount, Currency, Billable,
+   Invoiced, Job, Notes, Receipt URL. Receipts are copied into your own
+   private storage when they can be fetched; otherwise the link is kept. */
+function importExpensesFile(file) {
+  var reader = new FileReader();
+  reader.onload = function () { previewExpenseImport(String(reader.result || "")); };
+  reader.onerror = function () { toast("Couldn't read that file."); };
+  reader.readAsText(file);
+}
+function expenseKey(date, amount, merchant, desc) { return [date, round2(num(amount)).toFixed(2), String(merchant || "").trim().toLowerCase(), String(desc || "").trim().toLowerCase()].join("|"); }
+function titleCase(s) { return String(s || "").toLowerCase().replace(/(^|[\s\/-])([a-z])/g, function (m, a, b) { return a + b.toUpperCase(); }); }
+function previewExpenseImport(text) {
+  var rows = parseCsv(text);
+  if (!rows.length) { toast("That file is empty."); return; }
+  var head = rows[0].map(function (h) { return h.trim().toLowerCase(); });
+  var col = function (names) { for (var i = 0; i < names.length; i++) { var k = head.indexOf(names[i]); if (k !== -1) return k; } return -1; };
+  var C = { date: col(["date"]), merchant: col(["merchant", "supplier", "shop"]), desc: col(["description", "what was it for"]), category: col(["category"]),
+    amount: col(["amount", "total"]), currency: col(["currency"]), vat: col(["vat"]), billable: col(["billable", "recharged", "recharge"]), invoiced: col(["invoiced"]),
+    job: col(["job"]), notes: col(["notes", "note"]), receipt: col(["receipt url", "receipt"]) };
+  if (C.date === -1 || C.amount === -1) { toast("This doesn't look like an expenses CSV — it needs at least Date and Amount columns."); return; }
+  var get = function (r, k) { return k === -1 ? "" : String(r[k] || "").trim(); };
+  var yes = function (v) { return /^(yes|y|true|1)$/i.test(v); };
+  var have = {}; state.data.expenses.forEach(function (e) { have[expenseKey(e.date, e.amount, e.merchant, (e.desc || "") + "|" + (e.notes || ""))] = true; });
+  var cats = state.data.settings.expenseCategories, newCats = {};
+  var findCat = function (c) { for (var i = 0; i < cats.length; i++) if (cats[i].name.toLowerCase() === c.toLowerCase()) return cats[i].name; return null; };
+  var findJob = function (t) { t = t.toLowerCase(); return state.data.jobs.filter(function (j) { return t && ((j.ref || "").toLowerCase() === t || (j.title || "").toLowerCase() === t); })[0]; };
+  var fresh = [], dupes = 0, bad = 0, foreign = 0, receipts = 0;
+  rows.slice(1).forEach(function (r) {
+    var date = csvDate(get(r, C.date)), amount = round2(num(get(r, C.amount).replace(/[£,\s]/g, "")));
+    if (!date || !amount) { bad++; return; }
+    var desc = get(r, C.desc), notes = get(r, C.notes);
+    var key = expenseKey(date, amount, get(r, C.merchant), desc + "|" + notes);
+    if (have[key]) { dupes++; return; }
+    have[key] = true;
+    var rawCat = get(r, C.category), cat = rawCat ? findCat(rawCat) || titleCase(rawCat) : "Other";
+    if (!findCat(cat)) newCats[cat.toLowerCase()] = cat;
+    if (get(r, C.currency) && !/^gbp$/i.test(get(r, C.currency))) foreign++;
+    var job = findJob(get(r, C.job)), url = get(r, C.receipt);
+    if (/^https?:\/\//i.test(url)) receipts++; else url = "";
+    fresh.push({ date: date, merchant: get(r, C.merchant), desc: desc, notes: notes, category: cat, amount: amount, vat: round2(num(get(r, C.vat))),
+      billable: yes(get(r, C.billable)), invoiced: yes(get(r, C.invoiced)), jobId: job ? job.id : "", jobText: get(r, C.job), receiptUrl: url });
+  });
+  if (!fresh.length) { toast(dupes ? "Nothing new — all " + dupes + " expenses in that file are already here." : "No expenses found in that file."); return; }
+  var nc = Object.keys(newCats).map(function (k) { return newCats[k]; });
+  var total = round2(fresh.reduce(function (s, x) { return s + x.amount; }, 0));
+  var sample = fresh.slice(0, 6).map(function (x) {
+    return '<tr><td class="nowrap">' + fmtDate(x.date) + '</td><td>' + escapeHtml(x.merchant || "—") + '<div class="lr-sub">' + escapeHtml([x.desc, x.notes].filter(Boolean).join(" — ")) + '</div></td><td>' + escapeHtml(x.category) + '</td><td class="num">' + money(x.amount) + '</td><td class="center">' + (x.receiptUrl ? "🧾" : "—") + '</td></tr>';
+  }).join("");
+  var online = !!state.user;
+  showModal({
+    icon: "receipt", title: "Import " + fresh.length + " expense" + (fresh.length === 1 ? "" : "s") + "?",
+    text: [money(total) + " in total", dupes ? dupes + " already here (skipped)" : "", bad ? bad + " row" + (bad === 1 ? "" : "s") + " without a date or amount (skipped)" : ""].filter(Boolean).join(" · "),
+    body: '<div class="import-preview"><table class="log-table"><thead><tr><th>Date</th><th>Supplier</th><th>Category</th><th class="num">Amount</th><th class="center">Receipt</th></tr></thead><tbody>' + sample + '</tbody></table>' +
+      (fresh.length > 6 ? '<div class="lr-sub">…and ' + (fresh.length - 6) + ' more</div>' : "") +
+      (nc.length ? '<div class="import-note">New categor' + (nc.length === 1 ? "y" : "ies") + ' to add: <b>' + escapeHtml(nc.join(", ")) + '</b> (reported as "Other allowable expenses" — change it in Settings if needed).</div>' : "") +
+      (foreign ? '<div class="import-warn">' + foreign + ' expense' + (foreign === 1 ? " isn't" : "s aren't") + ' in GBP — the amounts are imported as they are, so check them.</div>' : "") +
+      (receipts ? '<label class="check-label import-check"><input type="checkbox" id="importReceipts"' + (online ? " checked" : " disabled") + '> Copy the ' + receipts + ' receipt' + (receipts === 1 ? "" : "s") + ' into DK Jobs (private storage)' +
+        (online ? "" : " — needs a connection; the links are kept for now") + '</label>' : "") + '</div>',
+    buttons: [
+      { label: "Import " + fresh.length + " expense" + (fresh.length === 1 ? "" : "s"), cls: "modal-primary", run: function () {
+        var copy = !!(document.getElementById("importReceipts") && document.getElementById("importReceipts").checked);
+        doExpenseImport(fresh, nc, copy);
+      } },
+      { label: "Cancel", cls: "modal-neutral" }
+    ]
+  });
+}
+function doExpenseImport(list, newCats, copyReceipts) {
+  newCats.forEach(function (c) { state.data.settings.expenseCategories.push({ name: c, hmrc: "other" }); });
+  var added = list.map(function (x) {
+    var e = { id: uid("e"), created: new Date().toISOString(), imported: true, date: x.date, merchant: x.merchant, desc: x.desc, notes: x.notes, category: x.category,
+      amount: x.amount, vat: x.vat, jobId: x.jobId, billable: x.billable, receiptPath: "", receiptUrl: x.receiptUrl };
+    if (x.billable && x.invoiced) e.invoiceId = "old-system";
+    state.data.expenses.push(e);
+    return e;
+  });
+  save(); render();
+  toast("Imported " + added.length + " expense" + (added.length === 1 ? "" : "s") + ".");
+  if (copyReceipts) copyImportedReceipts(added.filter(function (e) { return e.receiptUrl; }));
+}
+// Downloads each old receipt and stores it in your private receipts bucket.
+async function copyImportedReceipts(list) {
+  var done = 0, failed = 0;
+  for (var i = 0; i < list.length; i++) {
+    var e = list[i];
+    toast("Copying receipts… " + (i + 1) + " of " + list.length);
+    try {
+      var res = await fetch(e.receiptUrl);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      var blob = await res.blob();
+      var name = decodeURIComponent(e.receiptUrl.split("?")[0].split("/").pop() || "receipt");
+      var path = await uploadReceipt(new File([blob], name, { type: blob.type || "application/pdf" }), e.id);
+      // Saved straight away, unless you're part-way through other edits
+      // (then it's saved with them when you press Save).
+      var clean = !hasChanges(), live = byId(state.data.expenses, e.id);
+      if (live) { live.receiptPath = path; delete live.receiptUrl; if (clean) save(); }
+      done++;
+    } catch (err) { failed++; }
+  }
+  render();
+  toast(done + " receipt" + (done === 1 ? "" : "s") + " copied" + (failed ? " · " + failed + " couldn't be copied — their original links are kept" : "") + ".");
+}
 function doJobImport(list, alreadyInvoiced) {
   var byName = {}; state.data.clients.forEach(function (c) { byName[(c.name || "").trim().toLowerCase()] = c; });
   list.forEach(function (x) {
@@ -253,9 +356,10 @@ function doJobImport(list, alreadyInvoiced) {
 }
 function exportExpenses(y, r) {
   var list = state.data.expenses.filter(function (e) { return r ? inRange(e.date, r) : inTaxYear(e.date, y); }).sort(function (a, b) { return a.date < b.date ? -1 : 1; });
-  downloadCsv("expenses-" + taxYearLabel(y).replace("/", "-") + ".csv", ["Date", "Supplier", "Description", "Category", "HMRC category", "Amount", "VAT", "Job", "Recharged", "Receipt"],
-    list.map(function (e) { var j = jobById(e.jobId); return [e.date, e.merchant, e.desc, e.category, HMRC_CATEGORIES[categoryHmrc(e.category)], num(e.amount).toFixed(2), num(e.vat).toFixed(2), j ? jobLabel(j) : "", e.billable ? "Yes" : "No", e.receiptPath ? "Yes" : "No"]; }));
+  downloadCsv("expenses-" + taxYearLabel(y).replace("/", "-") + ".csv", ["Date", "Supplier", "Description", "Notes", "Category", "HMRC category", "Amount", "VAT", "Job", "Recharged", "Receipt"],
+    list.map(function (e) { var j = jobById(e.jobId); return [e.date, e.merchant, e.desc, e.notes || "", e.category, HMRC_CATEGORIES[categoryHmrc(e.category)], num(e.amount).toFixed(2), num(e.vat).toFixed(2), j ? jobLabel(j) : "", e.billable ? "Yes" : "No", e.receiptPath || e.receiptUrl ? "Yes" : "No"]; }));
 }
+
 function exportMileage(y, r) {
   var rows = mileageForYear(y).rows.filter(function (x) { return !r || inRange(x.trip.date, r); });
   downloadCsv("mileage-" + taxYearLabel(y).replace("/", "-") + ".csv", ["Date", "From", "To", "Journey", "Miles", "Claim", "Job", "Note"],
@@ -354,20 +458,10 @@ var ACTIONS = {
     });
   },
   "new-client": function () { guardLeave(newClient); },
-  "new-expense": function (id) {
-    guardLeave(function () {
-      state.expEditingId = null; state.expFromJob = id || "";
-      if (state.route.tab !== "expenses") { state.pendingForm = "expense"; goNow("expenses"); return; }
-      state.expAdding = true; render(); focusForm("expAmount");
-    });
-  },
-  "new-mileage": function (id) {
-    guardLeave(function () {
-      state.mileEditingId = null; state.mileFromJob = id || "";
-      if (state.route.tab !== "mileage") { state.pendingForm = "mileage"; goNow("mileage"); return; }
-      state.mileAdding = true; render(); focusForm("mMiles");
-    });
-  },
+  // Add Expense popup, from anywhere (on a job page they're linked to that job).
+  "new-expense": function (id) { openExpense(null, { jobId: id || (state.route.tab === "jobs" ? state.route.id : "") }); },
+  // Log Journey popup, from anywhere (on a job page it's linked to that job).
+  "new-mileage": function (id) { openJourney(null, id || (state.route.tab === "jobs" ? state.route.id : "")); },
   "save": function () { saveAll().then(function (ok) { if (ok) render(); }); },
   "discard": function () {
     showModal({
@@ -598,16 +692,22 @@ var ACTIONS = {
   },
 
   /* Expenses */
-  "exp-cancel": function () { state.expAdding = false; state.expEditingId = null; render(); },
-  "exp-edit": function (id) { guardLeave(function () { state.expEditingId = id; state.expAdding = false; render(); focusForm("expAmount"); }); },
-  "exp-dup": function (id) {
-    guardLeave(function () {
-      var e = byId(state.data.expenses, id);
-      var copy = Object.assign({}, e, { id: uid("e"), date: todayIso(), receiptPath: "" });
-      delete copy.invoiceId;
-      state.data.expenses.push(copy); save(); state.expEditingId = copy.id; render(); focusForm("expAmount");
-      toast("Copied to today — check the amount and add the new receipt.");
-    });
+  "exp-edit": function (id) { openExpense(byId(state.data.expenses, id)); },
+  "exp-cat": function (id) { state.expCat = id || ""; render(); },
+  "exp-year": function (id) { var y = parseInt(id, 10); state.expOpen = state.expOpen || {}; state.expOpen[y] = !(state.expOpen[y] !== undefined ? state.expOpen[y] : y === currentTaxYear()); render(); },
+  "subs-toggle": function () { state.subsOpen = !state.subsOpen; render(); },
+  "sub-add": function () { openSubscription(null); },
+  "sub-edit": function (id) { openSubscription(byId(state.data.subscriptions || [], id)); },
+  "sub-end": function (id) {
+    var x = byId(state.data.subscriptions || [], id);
+    showModal({ icon: "warn", title: "End " + x.name + "?", text: "No more payments will be logged after today. Ones already logged are kept.",
+      buttons: [{ label: "End Subscription", cls: "modal-danger", run: function () { x.end = todayIso(); save(); render(); } }, { label: "Cancel", cls: "modal-neutral" }] });
+  },
+  "sub-del": function (id) { state.data.subscriptions = (state.data.subscriptions || []).filter(function (x) { return x.id !== id; }); save(); render(); },
+  "export-receipts": function (id) {
+    var y = parseInt(id, 10) || currentTaxYear(), q = (state.expSearch || "").toLowerCase(), cat = state.expCat || "";
+    var list = state.data.expenses.filter(function (e) { return inTaxYear(e.date, y) && (!cat || e.category === cat) && (!q || [e.merchant, e.desc, e.notes].join(" ").toLowerCase().indexOf(q) !== -1); });
+    exportReceiptsZip(list, "Receipts-" + taxYearLabel(y).replace("/", "-") + ".zip");
   },
   "exp-del": function (id) {
     var e = byId(state.data.expenses, id);
@@ -616,19 +716,27 @@ var ACTIONS = {
     deleteReceipt(e.receiptPath);
     state.data.expenses = state.data.expenses.filter(function (x) { return x.id !== id; }); save(); render();
   },
-  "exp-receipt": function (id) { openReceipt(byId(state.data.expenses, id).receiptPath); },
-  "export-expenses": function () { exportExpenses(state.expYear || currentTaxYear()); },
+  "exp-receipt": function (id) { viewReceipt(byId(state.data.expenses, id)); },
+  "import-expenses": function () { document.getElementById("expImportFile").click(); },
+  "export-expenses": function (id) { exportExpenses(parseInt(id, 10) || currentTaxYear()); },
 
   /* Mileage */
-  "mile-cancel": function () { state.mileAdding = false; state.mileEditingId = null; render(); },
-  "mile-edit": function (id) { guardLeave(function () { state.mileEditingId = id; state.mileAdding = false; render(); focusForm("mMiles"); }); },
+  "mile-edit": function (id) { openJourney(byId(state.data.mileage, id)); },
+  "mile-year": function (id) { var y = parseInt(id, 10); state.mileOpen = state.mileOpen || {}; state.mileOpen[y] = !(state.mileOpen[y] !== undefined ? state.mileOpen[y] : y === currentTaxYear()); render(); },
+  // Put a journey on its job's charges at your per-mile rate (saved with the job).
+  "mile-add-item": function (id) {
+    var m = byId(state.data.mileage, id), j = m && jobById(m.jobId); if (!j) return;
+    var rate = mileageChargeRate(m.date), it = { id: uid("i"), desc: journeyItemDesc(m, rate), qty: tripMiles(m), price: rate };
+    j.items.push(it); m.itemId = it.id; render();
+    toast("Added to this job's charges — press Save to keep it.");
+  },
   "mile-del": function (id) {
     var m = byId(state.data.mileage, id);
     if (m.invoiceId) { alert("This journey is on an invoice. Remove it from the invoice first."); return; }
     if (!confirm("Delete this journey?")) return;
     state.data.mileage = state.data.mileage.filter(function (x) { return x.id !== id; }); save(); render();
   },
-  "export-mileage": function () { exportMileage(state.mileYear || currentTaxYear()); },
+  "export-mileage": function (id) { exportMileage(parseInt(id, 10) || currentTaxYear()); },
 
   /* Reports */
   "export-summary": function () { exportSummary(state.reportYear || currentTaxYear(), state.reportQuarter || "all"); },
@@ -649,74 +757,9 @@ var ACTIONS = {
 };
 function focusForm(id) { setTimeout(function () { var el = document.getElementById(id); if (el) { el.scrollIntoView({ block: "center", behavior: "smooth" }); el.focus({ preventScroll: true }); } }, 30); }
 
-/* ---------- Forms ---------- */
-async function submitExpense(form) {
-  var g = function (id) { var el = document.getElementById(id); return el ? el.value.trim() : ""; };
-  var amount = num(g("expAmount"));
-  if (!g("expDate")) { toast("Add the date."); return false; }
-  if (amount <= 0) { toast("Add the amount."); return false; }
-  var id = form.getAttribute("data-id");
-  var e = id ? byId(state.data.expenses, id) : { id: uid("e"), created: new Date().toISOString() };
-  if (e.invoiceId && round2(num(e.amount)) !== round2(amount)) { toast("This expense is on an invoice — the amount can't change."); return false; }
-  Object.assign(e, {
-    date: g("expDate"), merchant: g("expMerchant"), category: g("expCategory"), amount: round2(amount),
-    desc: g("expDesc"), vat: vatOn() ? round2(num(g("expVat"))) : (e.vat || 0), jobId: g("expJob"),
-    billable: document.getElementById("expBillable").checked
-  });
-  var file = document.getElementById("expReceipt").files[0];
-  if (file) {
-    state.receiptBusy = true; render();
-    try {
-      var old = e.receiptPath;
-      e.receiptPath = await uploadReceipt(file, e.id);
-      if (old) deleteReceipt(old);
-    } catch (err) {
-      state.receiptBusy = false; render();
-      toast("Receipt upload failed (" + errMessage(err) + "). The expense wasn't saved — try again.");
-      return false;
-    }
-    state.receiptBusy = false;
-  }
-  if (!id) state.data.expenses.push(e);
-  state.expAdding = false; state.expEditingId = null;
-  state.formKey = null;
-  save(); render(); toast("Expense saved.");
-  return true;
-}
-function submitMileage(form) {
-  var g = function (id) { var el = document.getElementById(id); return el ? el.value.trim() : ""; };
-  var miles = num(g("mMiles"));
-  if (!g("mDate")) { toast("Add the date."); return false; }
-  if (miles <= 0) { toast("Add the miles."); return false; }
-  var id = form.getAttribute("data-id");
-  var m = id ? byId(state.data.mileage, id) : { id: uid("m"), created: new Date().toISOString() };
-  if (m.invoiceId && (round2(num(m.miles)) !== round2(miles))) { toast("This journey is on an invoice — the miles can't change."); return false; }
-  Object.assign(m, {
-    date: g("mDate"), jobId: g("mJob"), from: g("mFrom"), to: g("mTo"), miles: round2(miles), trip: g("mTrip"),
-    desc: g("mDesc"), billable: document.getElementById("mBillable").checked, billRate: round2(num(g("mBillRate")))
-  });
-  if (!id) state.data.mileage.push(m);
-  state.mileAdding = false; state.mileEditingId = null;
-  state.formKey = null;
-  save(); render(); toast("Journey saved.");
-  return true;
-}
-function updateMileagePreview() {
-  var p = document.getElementById("mPreview"); if (!p) return;
-  var miles = num((document.getElementById("mMiles") || {}).value) * ((document.getElementById("mTrip") || {}).value === "return" ? 2 : 1);
-  var date = (document.getElementById("mDate") || {}).value || todayIso();
-  p.innerHTML = miles ? "<b>" + round2(miles) + " miles</b> · about <b>" + money(miles * rateHighFor(taxYearOf(date))) + "</b> claimable" : "";
-  var link = document.getElementById("mMapLink");
-  var from = (document.getElementById("mFrom") || {}).value, to = (document.getElementById("mTo") || {}).value;
-  if (link) {
-    link.href = "https://www.google.com/maps/dir/?api=1&origin=" + encodeURIComponent(from || "") + "&destination=" + encodeURIComponent(to || "") + "&travelmode=driving";
-    link.style.visibility = from && to ? "visible" : "hidden";
-  }
-}
-
 /* ---------- Saving ---------- */
 // An open expense or mileage form counts as unsaved once you change it.
-function openForm() { return document.getElementById("expenseForm") || document.getElementById("mileageForm"); }
+function openForm() { return null; } // expenses and journeys are now popups, saved by their own buttons
 function formValues(f) {
   return Array.prototype.map.call(f.querySelectorAll("input, select, textarea"), function (el) {
     return el.type === "checkbox" ? el.checked : el.type === "file" ? el.files.length : el.value;
@@ -731,10 +774,6 @@ function formChanged() { var f = openForm(); return !!f && formValues(f) !== sta
 // needs fixing first, so you stay on the page.
 async function saveAll() {
   var f = openForm();
-  if (f && formChanged()) {
-    var ok = f.id === "expenseForm" ? await submitExpense(f) : submitMileage(f);
-    if (!ok) return false;
-  }
   if (dataChanged()) { save(); toast("Saved."); }
   return true;
 }
@@ -759,6 +798,11 @@ document.addEventListener("click", function (ev) {
 document.addEventListener("input", function (ev) {
   var el = ev.target;
   if (el.hasAttribute("data-bind") && el.type !== "checkbox" && el.tagName !== "SELECT") onBoundInput(el, false);
+  if (el.id === "expSearch") {
+    state.expSearch = el.value;
+    var pos2 = el.selectionStart; render();
+    var s2 = document.getElementById("expSearch"); if (s2) { s2.focus(); s2.setSelectionRange(pos2, pos2); }
+  }
   if (el.id === "jobSearch") {
     state.jobSearch = el.value;
     var pos = el.selectionStart; render();
@@ -769,7 +813,6 @@ document.addEventListener("input", function (ev) {
     var old = c.name; c[el.getAttribute("data-cat-field")] = el.value;
     if (el.getAttribute("data-cat-field") === "name") state.data.expenses.forEach(function (e) { if (e.category === old) e.category = el.value; });
   }
-  if (/^m(Miles|Trip|Date|From|To)$/.test(el.id)) updateMileagePreview();
   updateSaveBar();
 });
 document.addEventListener("change", function (ev) {
@@ -781,31 +824,22 @@ document.addEventListener("change", function (ev) {
     return;
   }
   if (el.hasAttribute("data-cat-index")) { updateSaveBar(); return; }
-  if (el.id === "mJob") {
-    var jj = jobById(el.value), to = document.getElementById("mTo"), dt = document.getElementById("mDate");
-    if (jj && to && !to.value) to.value = jj.venue || "";
-    if (jj && dt && jobStartDate(jj)) dt.value = jobStartDate(jj);
-    updateMileagePreview();
-  }
   if (el.hasAttribute("data-project-job")) {
     var pj = jobById(el.getAttribute("data-project-job"));
     if (pj) { if (el.checked) pj.projectId = el.getAttribute("data-id"); else if (pj.projectId === el.getAttribute("data-id")) delete pj.projectId; }
     render(); return;
   }
-  if (el.id === "expYearSel") { state.expYear = parseInt(el.value, 10); render(); }
-  if (el.id === "mileYearSel") { state.mileYear = parseInt(el.value, 10); render(); }
   if (el.id === "reportYearSel") { state.reportYear = parseInt(el.value, 10); render(); }
   if (el.id === "logoFile" && el.files[0]) readLogo(el.files[0]);
   if (el.id === "backupFile" && el.files[0]) restoreBackup(el.files[0]);
+  if (el.id === "expImportFile" && el.files[0]) { guardLeave(function () { importExpensesFile(el.files[0]); el.value = ""; }); }
   if (el.id === "jobsImportFile" && el.files[0]) { guardLeave(function () { importJobsFile(el.files[0]); el.value = ""; }); }
   updateSaveBar();
 });
 document.addEventListener("submit", function (ev) {
-  if (ev.target.id === "expenseForm") { ev.preventDefault(); submitExpense(ev.target); }
-  if (ev.target.id === "mileageForm") { ev.preventDefault(); submitMileage(ev.target); }
 });
 document.addEventListener("keydown", function (ev) {
-  if (modalOpen()) { if (ev.key === "Escape") closeModal(); return; }
+  if (modalOpen()) { if (ev.key === "Escape") dismissModal(); return; }
   if (ev.target.id === "projectName" && ev.key === "Enter") { ev.preventDefault(); ACTIONS["project-create"](ev.target.getAttribute("data-id")); return; }
   if ((ev.ctrlKey || ev.metaKey) && ev.key === "s" && state.authed) {
     ev.preventDefault();

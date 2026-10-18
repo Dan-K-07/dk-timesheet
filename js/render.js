@@ -440,7 +440,8 @@ function renderLog() {
       '</div>' +
     '</div>';
 
-  var formHtml = state.adding ? renderEntryForm(null) : "";
+  var copying = state.copyingId && state.entries.filter(function (e) { return e.id === state.copyingId; })[0];
+  var formHtml = (state.adding ? renderEntryForm(null) : "") + (copying ? renderCopyForm(copying) : "");
 
   if (!state.entries.length && !state.adding) {
     return toolbar + renderEmpty();
@@ -470,6 +471,7 @@ function renderBulkBar(selCount) {
   var summaryRow = '<div class="btn-row" style="justify-content:space-between;">' +
     '<div class="btn-row"><b>' + selCount + '</b>&nbsp;selected</div>' +
     '<div class="btn-row">' +
+      (selCount === 1 ? '<button class="btn btn-sm" id="bulkCopy">Copy to other days</button>' : '') +
       '<button class="btn btn-sm" id="bulkEditToggle">' + (state.bulkEditOpen ? "Hide edit fields" : "Edit selected") + '</button>' +
       '<button class="btn btn-sm btn-danger" id="bulkDelete">Delete selected</button>' +
       '<button class="btn btn-sm btn-ghost" id="bulkClear">Clear selection</button>' +
@@ -522,6 +524,7 @@ function renderRow(e) {
     '<td class="notes-cell" title="' + escapeHtml(e.notes || "") + '">' + escapeHtml(e.notes || "") + '</td>' +
     '<td class="actions-cell"><div class="row-actions">' +
       '<button class="icon-btn" data-edit="' + e.id + '" title="Edit">Edit</button>' +
+      '<button class="icon-btn" data-copy="' + e.id + '" title="Copy this shift to other days">Copy</button>' +
       '<button class="icon-btn danger" data-delete="' + e.id + '" title="Delete">Delete</button>' +
     '</div></td>' +
   '</tr>';
@@ -537,18 +540,55 @@ function renderEntryForm(existing) {
   var e = existing || { date: "", start: "", end: "", breakHrs: "0.5", rate: state.lastRate || "", type: "Off", notes: "" };
   return '<div class="card entry-form" id="entryForm">' +
     '<div class="form-grid">' +
-      '<div class="field"><label>Date</label><input type="date" id="f_date" value="' + escapeHtml(e.date) + '"></div>' +
-      '<div class="field"><label>Start</label><input type="time" id="f_start" value="' + escapeHtml(e.start) + '"></div>' +
-      '<div class="field"><label>End</label><input type="time" id="f_end" value="' + escapeHtml(e.end) + '"></div>' +
-      '<div class="field"><label>Break (hrs)</label><input type="number" step="0.25" min="0" id="f_break" value="' + escapeHtml(e.breakHrs) + '"></div>' +
-      '<div class="field"><label>Rate (\u00A3/hr)</label><input type="number" step="0.01" min="0" id="f_rate" value="' + escapeHtml(e.rate) + '"></div>' +
-      '<div class="field"><label>Type</label><select id="f_type">' + typeOptionsHtml(e.type) + '</select></div>' +
-      '<div class="field full"><label>Notes</label><input type="text" id="f_notes" value="' + escapeHtml(e.notes) + '" placeholder="Optional"></div>' +
+      '<div class="field"><label>Date</label><input type="date" class="field-input" id="f_date" value="' + escapeHtml(e.date) + '"></div>' +
+      '<div class="field"><label>Start</label><input type="time" class="field-input" id="f_start" value="' + escapeHtml(e.start) + '"></div>' +
+      '<div class="field"><label>End</label><input type="time" class="field-input" id="f_end" value="' + escapeHtml(e.end) + '"></div>' +
+      '<div class="field"><label>Break (hrs)</label><input type="number" step="0.25" min="0" class="field-input" id="f_break" value="' + escapeHtml(e.breakHrs) + '"></div>' +
+      '<div class="field"><label>Rate (\u00A3/hr)</label><input type="number" step="0.01" min="0" class="field-input" id="f_rate" value="' + escapeHtml(e.rate) + '"></div>' +
+      '<div class="field"><label>Type</label><select id="f_type" class="field-input">' + typeOptionsHtml(e.type) + '</select></div>' +
+      '<div class="field full"><label>Notes</label><input type="text" class="field-input" id="f_notes" value="' + escapeHtml(e.notes) + '" placeholder="Optional"></div>' +
     '</div>' +
     '<div class="form-preview" id="formPreview">' + formPreviewText(e) + '</div>' +
     '<div class="btn-row">' +
       '<button class="btn btn-primary" id="saveEntry" data-existing-id="' + (existing ? existing.id : "") + '">' + (existing ? "Save changes" : "Add entry") + '</button>' +
       '<button class="btn btn-ghost" id="cancelEntry">Cancel</button>' +
+    '</div>' +
+  '</div>';
+}
+
+/* ---------- Copy a shift to other days ---------- */
+var WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+function addDaysIso(iso, n) {
+  var d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+}
+function shiftSummary(e) {
+  var bits = [fmtDate(e.date)];
+  if (e.start || e.end) bits.push((e.start || "?") + "\u2013" + (e.end || "?"));
+  if (e.breakHrs !== "" && e.breakHrs !== undefined && e.breakHrs !== null) bits.push(e.breakHrs + " hr break");
+  if (e.type) bits.push(e.type);
+  return bits.join(" \u00B7 ");
+}
+function renderCopyForm(e) {
+  var next = e.date ? addDaysIso(e.date, 1) : "";
+  var dayBoxes = WEEKDAYS.map(function (d, i) {
+    return '<label class="copy-day"><input type="checkbox" class="copy-dow" value="' + i + '" checked> ' + d + '</label>';
+  }).join("");
+  return '<div class="card entry-form copy-form" id="copyForm" data-id="' + e.id + '">' +
+    '<div class="copy-title">Copy shift</div>' +
+    '<div class="copy-source">' + escapeHtml(shiftSummary(e)) + '</div>' +
+    '<div class="form-grid">' +
+      '<div class="field"><label>Copy to</label><input type="date" class="field-input" id="c_from" value="' + next + '"></div>' +
+      '<div class="field"><label>Until (optional, for a run of days)</label><input type="date" class="field-input" id="c_to" value=""></div>' +
+      '<div class="field full copy-days" id="c_daysWrap" hidden><label>On these days</label><div class="copy-day-row">' + dayBoxes + '</div></div>' +
+      '<div class="field full"><label class="copy-check"><input type="checkbox" id="c_skip" checked> Skip days that already have an entry</label>' +
+        '<label class="copy-check"><input type="checkbox" id="c_notes" checked> Copy the notes too</label></div>' +
+    '</div>' +
+    '<div class="form-preview" id="copyPreview"></div>' +
+    '<div class="btn-row">' +
+      '<button class="btn btn-primary" id="copySave">Copy</button>' +
+      '<button class="btn btn-ghost" id="copyCancel">Cancel</button>' +
     '</div>' +
   '</div>';
 }
