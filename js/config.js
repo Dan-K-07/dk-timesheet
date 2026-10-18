@@ -1,7 +1,7 @@
 "use strict";
 
 /* ============ Constants ============ */
-var APP_VERSION = "2.8.0"; // bump this whenever you change the app
+var APP_VERSION = "2.9.0"; // bump this whenever you change the app
 var TYPES = ["Warehouse", "On Site", "Holiday", "Sick", "Off"];
 var TYPE_CLASS = { "Warehouse": "tag-Warehouse", "On Site": "tag-OnSite", "Holiday": "tag-Holiday", "Sick": "tag-Sick", "Off": "tag-Off" };
 var STORAGE_KEY = "dk_timesheet_entries_v1";
@@ -68,6 +68,7 @@ var state = {
   lastSynced: null,
   selectedIds: {},
   bulkEditOpen: false,
+  copyingId: null, // the entry whose Copy panel is open on All Data
   documents: [],
   docFilterDate: "",
   docUploading: false,

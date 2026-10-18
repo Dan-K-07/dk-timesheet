@@ -44,7 +44,7 @@ function attachEvents() {
   attachSettingsEvents();
   attachExpenseEvents();
 
-  bindIf("addBtn", "click", function () { state.adding = true; state.editingId = null; render(); scrollToForm(); });
+  bindIf("addBtn", "click", function () { state.adding = true; state.editingId = null; state.copyingId = null; render(); scrollToForm(); });
   bindIf("emptyAdd", "click", function () { state.tab = "log"; state.adding = true; render(); scrollToForm(); });
   bindIf("emptyImport", "click", function () { document.getElementById("fileInput").click(); });
   bindIf("importBtn", "click", function () { document.getElementById("fileInput").click(); });
@@ -93,9 +93,16 @@ function attachEvents() {
     btn.addEventListener("click", function () {
       state.editingId = btn.getAttribute("data-edit");
       state.adding = false;
+      state.copyingId = null;
       render();
     });
   });
+  document.querySelectorAll("[data-copy]").forEach(function (btn) {
+    btn.addEventListener("click", function () { openCopy(btn.getAttribute("data-copy")); });
+  });
+  bindIf("bulkCopy", "click", function () { var ids = Object.keys(state.selectedIds); if (ids.length === 1) openCopy(ids[0]); });
+  attachCopyEvents();
+
   document.querySelectorAll("[data-delete]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var id = btn.getAttribute("data-delete");
@@ -210,6 +217,88 @@ function attachEvents() {
     render();
     toast("Updated " + changes.length + " field" + (changes.length === 1 ? "" : "s") + " on " + ids.length + " entr" + (ids.length === 1 ? "y" : "ies") + ".");
   });
+}
+
+/* ---------- Copy a shift to other days ---------- */
+function openCopy(id) {
+  state.copyingId = id; state.adding = false; state.editingId = null;
+  render();
+  setTimeout(function () {
+    var f = document.getElementById("copyForm");
+    if (f) f.scrollIntoView({ behavior: "smooth", block: "center" });
+    var d = document.getElementById("c_from"); if (d) d.focus();
+  }, 30);
+}
+// Works out which dates the copy will land on, from the panel's inputs.
+function copyPlan() {
+  var from = document.getElementById("c_from").value, to = document.getElementById("c_to").value;
+  var skip = document.getElementById("c_skip").checked;
+  var plan = { dates: [], skipped: [], error: "" };
+  if (!from) { plan.error = "Pick the day to copy to."; return plan; }
+  var dates = [from];
+  if (to && to !== from) {
+    if (to < from) { plan.error = "\u201cUntil\u201d is before the first day."; return plan; }
+    var days = {};
+    document.querySelectorAll(".copy-dow").forEach(function (c) { if (c.checked) days[c.value] = true; });
+    dates = [];
+    for (var d = from, n = 0; d <= to; d = addDaysIso(d, 1), n++) {
+      if (n > 366) { plan.error = "That's more than a year \u2014 pick a shorter run of days."; return plan; }
+      var dow = (new Date(d + "T00:00:00").getDay() + 6) % 7; // Mon = 0
+      if (days[dow]) dates.push(d);
+    }
+  }
+  var taken = {};
+  state.entries.forEach(function (e) { if (e.date) taken[e.date] = true; });
+  dates.forEach(function (d) { if (skip && taken[d]) plan.skipped.push(d); else plan.dates.push(d); });
+  return plan;
+}
+function updateCopyPreview() {
+  var box = document.getElementById("copyPreview"), btn = document.getElementById("copySave");
+  if (!box) return;
+  var to = document.getElementById("c_to").value, from = document.getElementById("c_from").value;
+  document.getElementById("c_daysWrap").hidden = !(to && from && to > from);
+  var plan = copyPlan(), n = plan.dates.length;
+  var list = function (arr) {
+    var shown = arr.slice(0, 8).map(fmtDate).join(", ");
+    return shown + (arr.length > 8 ? " and " + (arr.length - 8) + " more" : "");
+  };
+  var html = plan.error ? escapeHtml(plan.error)
+    : n ? "Adds <b>" + n + "</b> entr" + (n === 1 ? "y" : "ies") + ": " + escapeHtml(list(plan.dates))
+    : "No days to add.";
+  if (!plan.error && plan.skipped.length) html += "<br>Skipping " + plan.skipped.length + " day" + (plan.skipped.length === 1 ? "" : "s") + " that already " + (plan.skipped.length === 1 ? "has" : "have") + " an entry: " + escapeHtml(list(plan.skipped));
+  box.innerHTML = html;
+  btn.disabled = !!plan.error || !n;
+  btn.textContent = n > 1 ? "Copy to " + n + " days" : "Copy";
+}
+function attachCopyEvents() {
+  var form = document.getElementById("copyForm");
+  if (!form) return;
+  ["c_from", "c_to", "c_skip"].forEach(function (id) {
+    var el = document.getElementById(id);
+    el.addEventListener("input", updateCopyPreview);
+    el.addEventListener("change", updateCopyPreview);
+  });
+  form.querySelectorAll(".copy-dow").forEach(function (c) { c.addEventListener("change", updateCopyPreview); });
+  bindIf("copyCancel", "click", function () { state.copyingId = null; render(); });
+  bindIf("copySave", "click", function () {
+    var src = state.entries.filter(function (e) { return e.id === form.getAttribute("data-id"); })[0];
+    var plan = copyPlan();
+    if (!src || plan.error || !plan.dates.length) { toast(plan.error || "No days to add."); return; }
+    var withNotes = document.getElementById("c_notes").checked;
+    plan.dates.forEach(function (d) {
+      state.entries.push({
+        id: uid(), date: d, start: src.start || "", end: src.end || "", breakHrs: src.breakHrs === undefined ? "" : src.breakHrs,
+        rate: src.rate === undefined ? "" : src.rate, type: src.type || "", notes: withNotes ? (src.notes || "") : ""
+      });
+    });
+    state.copyingId = null;
+    clearSelection();
+    save();
+    render();
+    var n = plan.dates.length;
+    toast(n === 1 ? "Copied to " + fmtDate(plan.dates[0]) + "." : "Copied to " + n + " days.");
+  });
+  updateCopyPreview();
 }
 
 function bindIf(id, evt, fn) {

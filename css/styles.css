@@ -378,6 +378,12 @@ select, .field-input {
 .field input, .field select { width: 100%; }
 .form-preview { font-family: var(--font-mono); font-size: 13px; color: var(--ink-dim); margin-bottom: 12px; }
 .form-preview b { color: var(--ink); font-weight: 600; }
+.copy-title { font-family: var(--font-head); font-weight: 700; font-size: 15px; }
+.copy-source { font-family: var(--font-mono); font-size: 13px; color: var(--ink-dim); margin: 2px 0 12px; }
+.copy-day-row { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.copy-day, .copy-check { display: inline-flex !important; align-items: center; gap: 6px; font-size: 13px !important; color: var(--ink) !important; margin: 0 16px 0 0 !important; }
+.copy-day input, .copy-check input { width: auto; }
+.copy-form .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 /* ---------- Data table ---------- */
 .log-table-wrap { overflow-x: auto; }
