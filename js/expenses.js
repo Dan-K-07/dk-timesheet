@@ -97,6 +97,21 @@ function expenseOccurrences(e, from, to) {
   }
   return out;
 }
+// When an expense was paused: a list of { from, to } (to = null while it's
+// still paused). Payments on those days didn't go out; ones before still did.
+// An expense paused before dates were recorded counts as paused throughout.
+function pausePeriods(e) {
+  var list = (e.paused_periods || []).slice();
+  if (!e.active && !list.some(function (p) { return !p.to; })) list.push({ from: "0000-01-01", to: null });
+  return list;
+}
+function pausedOn(e, iso) {
+  return pausePeriods(e).some(function (p) { return iso >= p.from && (!p.to || iso <= p.to); });
+}
+// The payments that actually go out (or went out) between two dates.
+function paidOccurrences(e, from, to) {
+  return expenseOccurrences(e, from, to).filter(function (d) { return !pausedOn(e, d); });
+}
 function nextPayment(e) {
   var today = todayIso(), p = isoParts(today);
   var found = expenseOccurrences(e, today, isoFromParts(p[0] + 2, p[1], 1));
@@ -106,8 +121,7 @@ function dueThisMonth() {
   var p = isoParts(todayIso()), from = isoFromParts(p[0], p[1], 1), to = lastDayIso(p[0], p[1]);
   var items = [];
   state.expenses.forEach(function (e) {
-    if (!e.active) return;
-    expenseOccurrences(e, from, to).forEach(function (d) { items.push({ date: d, expense: e }); });
+    paidOccurrences(e, from, to).forEach(function (d) { items.push({ date: d, expense: e }); });
   });
   items.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.expense.name.localeCompare(b.expense.name); });
   return items;
@@ -159,8 +173,7 @@ function earningsBetween(from, to) {
 }
 function expensesBetween(from, to) {
   return state.expenses.reduce(function (s, e) {
-    if (!e.active) return s;
-    return s + expenseOccurrences(e, from, to).length * (Number(e.amount) || 0);
+    return s + paidOccurrences(e, from, to).length * (Number(e.amount) || 0);
   }, 0);
 }
 function expenseYearView(mode, startYear) {
@@ -200,7 +213,8 @@ function normalizeExpense(r) {
     amount: Number(r.amount) || 0, frequency: r.frequency || "monthly",
     start_date: r.start_date || "", end_date: r.end_date || null,
     payment_day: r.payment_day ? Number(r.payment_day) : null,
-    notes: r.notes || "", active: r.active !== false, created_at: r.created_at || ""
+    notes: r.notes || "", active: r.active !== false, created_at: r.created_at || "",
+    paused_periods: Array.isArray(r.paused_periods) ? r.paused_periods.filter(function (p) { return p && p.from; }) : []
   };
 }
 
@@ -263,6 +277,11 @@ async function saveExpense(id, vals) {
     var res = id
       ? await sbClient.from(EXPENSES_TABLE).update(vals).eq("id", id).select().single()
       : await sbClient.from(EXPENSES_TABLE).insert(Object.assign({ user_id: state.user.id }, vals)).select().single();
+    if (res.error && vals.paused_periods && /paused_periods/.test(errMessage(res.error))) {
+      // The database hasn't got the paused_periods column yet - save without it.
+      var rest = Object.assign({}, vals); delete rest.paused_periods;
+      return saveExpense(id, rest);
+    }
     if (res.error) throw res.error;
     recentExpenseWrites[res.data.id] = Date.now();
     upsertLocalExpense(res.data);
@@ -274,7 +293,16 @@ async function saveExpense(id, vals) {
 }
 async function setExpenseActive(id, active) {
   var e = state.expenses.find(function (x) { return x.id === id; });
-  if (!e || !(await saveExpense(id, { active: active }))) return;
+  if (!e) return;
+  // Pausing stops payments from today; resuming starts them again from today.
+  var today = todayIso(), periods = (e.paused_periods || []).map(function (p) { return { from: p.from, to: p.to || null }; });
+  if (active) {
+    periods.forEach(function (p) { if (!p.to) p.to = addDaysIso(today, -1); });
+    periods = periods.filter(function (p) { return p.to >= p.from; }); // paused and resumed the same day: nothing was missed
+  } else if (!periods.some(function (p) { return !p.to; })) {
+    periods.push({ from: today, to: null });
+  }
+  if (!(await saveExpense(id, { active: active, paused_periods: periods }))) return;
   toast(active ? "Resumed “" + e.name + "”." : "Paused “" + e.name + "”.");
   render();
 }
@@ -455,7 +483,9 @@ function renderExpenses() {
     if (state.expEditingId === e.id) return '<tr><td colspan="8" style="padding:0;border-bottom:none;">' + renderExpenseForm(e) + '</td></tr>';
     var f = frequencyInfo(e.frequency), next = e.active ? nextPayment(e) : null;
     var ended = e.end_date && e.end_date < today;
-    var status = !e.active ? '<span class="tag tag-none">Paused</span>' : ended ? '<span class="tag tag-none">Ended</span>' : "";
+    var since = !e.active && pausePeriods(e).filter(function (x) { return !x.to && x.from > "0000-01-01"; })[0];
+    var status = !e.active ? '<span class="tag tag-none"' + (since ? ' title="Paused since ' + escapeHtml(fmtDate(since.from)) + '"' : '') + '>Paused</span>' +
+      (since ? '<div class="exp-note">since ' + escapeHtml(fmtDate(since.from)) + '</div>' : '') : ended ? '<span class="tag tag-none">Ended</span>' : "";
     return '<tr class="' + (!e.active || ended ? "exp-paused" : "") + '">' +
       '<td class="exp-name-cell" title="' + escapeHtml(e.notes) + '">' + escapeHtml(e.name) + (e.notes ? '<div class="exp-note">' + escapeHtml(e.notes) + '</div>' : '') + '</td>' +
       '<td>' + escapeHtml(e.category) + '</td>' +
@@ -534,7 +564,7 @@ function renderExpenseYearView() {
       : usingSalary()
       ? 'Earnings are your salary ' + (earningsAfterTax() ? 'after tax' : 'before tax') + ' (annual \u00F7 12 each month), set in Settings' + (earningsAfterTax() ? '. ' : ' \u2014 see Take-Home Pay for after-tax figures. ')
       : 'Earnings are your logged pay before tax, the same as the Summary tab \u2014 see Take-Home Pay for after-tax figures. You can use your salary or your own monthly amounts instead in Settings. ') +
-      'Expenses count each payment in the month it falls, including one-offs. Paused expenses are left out.' +
+      'Expenses count each payment in the month it falls, including one-offs. Paused expenses are left out from the day you paused them; payments before that still count.' +
       (earningsSource() === "timesheet" ? ' Later months (faded) only include what\u2019s logged so far.' : '') + '</p>';
 }
 
