@@ -454,7 +454,10 @@ function renderExpenses() {
   var stats = '<div class="stat-grid">' +
     '<div class="card stat-card"><div class="stat-label">Monthly total</div><div class="stat-value">' + fmtPay(totals.monthly) + '</div><div class="stat-sub">Regular expenses, as a monthly figure</div></div>' +
     '<div class="card stat-card"><div class="stat-label">Yearly total</div><div class="stat-value">' + fmtPay(totals.yearly) + '</div><div class="stat-sub">' + currentRecurring().length + ' active regular expense' + (currentRecurring().length === 1 ? "" : "s") + '</div></div>' +
-    '<div class="card stat-card"><div class="stat-label">Due in ' + MONTH_NAMES[p[1] - 1] + '</div><div class="stat-value">' + fmtPay(dueTotal) + '</div><div class="stat-sub">' + fmtPay(dueLeft) + ' still to go out</div></div>' +
+    // Counts down through the month as each payment goes out.
+    '<div class="card stat-card"><div class="stat-label">Left to pay in ' + MONTH_NAMES[p[1] - 1] + '</div><div class="stat-value">' + fmtPay(dueLeft) + '</div>' +
+      '<div class="bar-track due-track"><div class="bar-fill" style="width:' + (dueTotal ? Math.round((dueTotal - dueLeft) / dueTotal * 100) : 0) + '%;background:var(--accent)"></div></div>' +
+      '<div class="stat-sub">' + fmtPay(dueTotal - dueLeft) + ' paid of ' + fmtPay(dueTotal) + ' this month</div></div>' +
   '</div>';
 
   var cats = categoryBreakdown();
