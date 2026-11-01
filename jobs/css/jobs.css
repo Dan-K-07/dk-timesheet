@@ -217,7 +217,7 @@ textarea.field-input { width: 100%; resize: vertical; line-height: 1.45; font-fa
 /* Client page */
 .client-head .back-link { display: inline-block; margin-bottom: 6px; }
 .client-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; width: 100%; }
-.client-title .btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.client-title .btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; text-decoration: none; }
 .client-title .ico { width: 16px; height: 16px; }
 .accent-title { color: var(--accent); margin: 0; font-size: 28px; }
 .page-head.client-head { display: block; }
@@ -295,7 +295,7 @@ textarea.field-input { width: 100%; resize: vertical; line-height: 1.45; font-fa
 .dates-card .form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
 /* Statement of account (client page) */
-.stmt-card { padding-top: 14px; margin-top: 16px; }
+.stmt-card { padding-top: 14px; }
 .stmt-card .cap-head { padding: 0 16px; flex-wrap: wrap; }
 .stmt-bar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 4px 16px 12px; }
 .stmt-dates { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }

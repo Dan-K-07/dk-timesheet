@@ -57,7 +57,8 @@ function readRoute() {
   var tab = parts[0] || "home";
   if (tab === "doc") return { tab: "doc", id: decodeURIComponent(parts[1] || "") };
   if (!TABS.some(function (t) { return t.key === tab; })) tab = "home";
-  return { tab: tab, id: parts[1] ? decodeURIComponent(parts[1]) : null };
+  // A third part opens a sub-page, e.g. #/clients/c1/statement.
+  return { tab: tab, id: parts[1] ? decodeURIComponent(parts[1]) : null, sub: parts[2] ? decodeURIComponent(parts[2]) : null };
 }
 function go(tab, id) { guardLeave(function () { goNow(tab, id); }); }
 // Move page without asking (only once any unsaved changes are dealt with).
