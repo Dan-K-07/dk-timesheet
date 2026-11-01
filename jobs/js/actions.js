@@ -503,6 +503,10 @@ var ACTIONS = {
     var inputs = document.querySelectorAll('[data-bind="client-contacts"][data-field="name"]'); if (inputs.length) inputs[inputs.length - 1].focus();
   },
   "contact-del": function (id, el) { var c = byId(state.data.clients, id); c.contacts = c.contacts.filter(function (k) { return k.id !== el.getAttribute("data-sub"); }); render(); },
+  // Statement of account on the client page
+  "stmt-pdf": function (id) { var c = byId(state.data.clients, id); if (c) downloadStatementPdf(c, state.stmtRange[id] || {}); },
+  "stmt-pdf-all": function (id) { var c = byId(state.data.clients, id); if (c) downloadStatementPdf(c, {}); },
+  "stmt-clear": function (id) { delete state.stmtRange[id]; render(); },
   "hist-sort": function (id) { var h = state.histSort; h.dir = h.key === id ? -h.dir : (id === "job" || id === "ref" ? 1 : -1); h.key = id; render(); },
 
   /* Projects (on the client page) */
@@ -830,6 +834,12 @@ document.addEventListener("change", function (ev) {
     render(); return;
   }
   if (el.id === "reportYearSel") { state.reportYear = parseInt(el.value, 10); render(); }
+  if (el.id === "stmtFrom" || el.id === "stmtTo") {
+    var cid = el.getAttribute("data-id"), r = state.stmtRange[cid] = state.stmtRange[cid] || {};
+    r[el.id === "stmtFrom" ? "from" : "to"] = el.value;
+    if (r.from && r.to && r.from > r.to) { toast("The From date is after the To date."); }
+    render(); return;
+  }
   if (el.id === "logoFile" && el.files[0]) readLogo(el.files[0]);
   if (el.id === "backupFile" && el.files[0]) restoreBackup(el.files[0]);
   if (el.id === "expImportFile" && el.files[0]) { guardLeave(function () { importExpensesFile(el.files[0]); el.value = ""; }); }

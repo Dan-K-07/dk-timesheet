@@ -217,7 +217,7 @@ textarea.field-input { width: 100%; resize: vertical; line-height: 1.45; font-fa
 /* Client page */
 .client-head .back-link { display: inline-block; margin-bottom: 6px; }
 .client-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; width: 100%; }
-.client-title .btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.client-title .btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; text-decoration: none; }
 .client-title .ico { width: 16px; height: 16px; }
 .accent-title { color: var(--accent); margin: 0; font-size: 28px; }
 .page-head.client-head { display: block; }
@@ -293,6 +293,28 @@ textarea.field-input { width: 100%; resize: vertical; line-height: 1.45; font-fa
 .cell-date:hover { border-color: var(--line); background: var(--panel-2); }
 .cell-date:focus { outline: none; border-color: var(--accent); background: var(--panel); }
 .dates-card .form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* Statement of account (client page) */
+.stmt-card { padding-top: 14px; }
+.stmt-card .cap-head { padding: 0 16px; flex-wrap: wrap; }
+.stmt-bar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 4px 16px 12px; }
+.stmt-dates { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.stmt-dates .field { width: 160px; margin: 0; }
+.stmt-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px 16px; padding: 12px 16px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--panel-2); }
+.stmt-summary > div { display: flex; flex-direction: column; gap: 2px; }
+.stmt-summary .stat-label { margin: 0; }
+.stmt-summary b { font-size: 17px; }
+.stmt-summary b.accent { color: var(--accent); }
+.stmt-table td, .stmt-table th { white-space: nowrap; padding: 9px 10px; font-size: 13px; }
+.stmt-table tr.stmt-pay td { color: var(--ink-dim); }
+.stmt-table tr.stmt-pay td.num:nth-child(6) { color: var(--holiday); font-weight: 600; }
+.stmt-table tr.stmt-bf td { font-style: italic; color: var(--ink-dim); }
+@media (max-width: 640px) {
+  .stmt-dates { width: 100%; }
+  .stmt-dates .field { width: auto; flex: 1 1 130px; }
+  .stmt-bar .btn-row { width: 100%; }
+  .stmt-bar .btn-row .btn { flex: 1 1 auto; }
+}
 .ref-link { color: var(--accent); font-weight: 700; text-decoration: none; white-space: nowrap; }
 .ref-link:hover { text-decoration: underline; }
 .fin-stats { grid-template-columns: repeat(2, minmax(0, 260px)); }
@@ -486,7 +508,8 @@ textarea.field-input { width: 100%; resize: vertical; line-height: 1.45; font-fa
 }
 @media (max-width: 640px) {
   .quick-grid { grid-template-columns: repeat(2, 1fr); }
-  .stat-grid-4 { grid-template-columns: 1fr 1fr; }
+  .stat-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .client-stats .stat-value { font-size: 20px; overflow-wrap: anywhere; }
   .form-grid .span-3 { grid-column: span 2; }
   .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .form-grid .field-input { min-width: 0; width: 100%; }

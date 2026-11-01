@@ -13,6 +13,7 @@ function clientStats(cId) {
   return { jobs: jobs, invoices: invs, billed: round2(billed), owed: round2(owed) };
 }
 function renderClients() {
+  if (state.route.id && state.route.sub === "statement") return renderStatementPage(state.route.id);
   if (state.route.id) return renderClientPage(state.route.id);
   var list = state.data.clients.slice().sort(function (a, b) { return (a.name || "").localeCompare(b.name || ""); });
   if (!list.length) return emptyBlock("No clients yet", "Add the companies you work for. Their details go on your quotes and invoices.", btn("Add client", "new-client", { cls: "btn-primary" }));
@@ -37,7 +38,8 @@ function renderClientPage(id) {
   var billed = sumGross(issued), paid = sumGross(issued.filter(function (i) { return i.status === "paid"; }));
   var head = '<div class="page-head client-head"><a class="back-link" href="#/clients">← Clients</a>' +
     '<div class="client-title"><div><h1 class="page-title accent-title">' + escapeHtml(c.name || "New client") + '</h1><div class="page-sub">Client details &amp; invoice history</div></div>' +
-    '<button class="btn" data-action="client-edit">' + icon(state.clientEditing ? "save" : "pencil") + ' ' + (state.clientEditing ? "Done editing" : "Edit Client") + '</button></div></div>';
+    '<div class="btn-row"><a class="btn" href="#/clients/' + encodeURIComponent(c.id) + '/statement">' + icon("file") + ' Statement of account</a>' +
+    '<button class="btn" data-action="client-edit">' + icon(state.clientEditing ? "save" : "pencil") + ' ' + (state.clientEditing ? "Done editing" : "Edit Client") + '</button></div></div></div>';
 
   var details;
   if (state.clientEditing) {
@@ -170,6 +172,45 @@ function renderClientHistory(c) {
     '<div class="table-scroll"><table class="log-table hist-table"><thead><tr>' + th("ref", "Job ref") + th("job", "Job") + th("jobDate", "Job date") + th("invoice", "Invoice") +
       th("invDate", "Inv date") + th("due", "Due date") + th("amount", "Amount", "num") + th("status", "Status") + th("paid", "Date paid") + '</tr></thead><tbody>' +
     (body || '<tr><td colspan="9" class="list-empty">No jobs for this client yet.</td></tr>') + '</tbody></table></div></div>';
+}
+
+/* Statement of account: its own page (#/clients/<id>/statement) with
+   invoices and payments and a running balance, for a date range or
+   everything. Downloads as a PDF. */
+function renderStatementPage(id) {
+  var c = byId(state.data.clients, id);
+  if (!c) return emptyBlock("Client not found", "It may have been deleted on another device.", '<a class="btn" href="#/clients">Back to clients</a>');
+  return '<div class="page-head client-head"><a class="back-link" href="#/clients/' + encodeURIComponent(c.id) + '">← ' + escapeHtml(c.name || "Client") + '</a>' +
+    '<div class="client-title"><div><h1 class="page-title accent-title">' + escapeHtml(c.name || "Client") + '</h1><div class="page-sub">Statement of account</div></div></div></div>' +
+    renderStatement(c);
+}
+function renderStatement(c) {
+  var range = state.stmtRange[c.id] || {}, st = clientStatement(c.id, range.from, range.to), ranged = !!(range.from || range.to);
+  var dates = '<div class="stmt-dates">' +
+      field("From", '<input type="date" class="field-input" id="stmtFrom" data-id="' + attr(c.id) + '" value="' + attr(range.from || "") + '">') +
+      field("To", '<input type="date" class="field-input" id="stmtTo" data-id="' + attr(c.id) + '" value="' + attr(range.to || "") + '">') +
+      (ranged ? btn("Clear dates", "stmt-clear", { id: c.id, cls: "btn-sm" }) : "") + '</div>';
+  var buttons = '<div class="btn-row">' +
+      btn(ranged ? "Download PDF (these dates)" : "Download PDF", "stmt-pdf", { id: c.id, cls: "btn-primary", disabled: !st.any }) +
+      (ranged ? btn("Download full history", "stmt-pdf-all", { id: c.id, disabled: !st.any }) : "") + '</div>';
+  var cell = function (n) { return n ? money(n) : ""; };
+  var body = (st.from ? '<tr class="stmt-bf"><td class="date-cell">' + fmtDate(st.from) + '</td><td></td><td>Balance brought forward</td><td></td><td></td><td></td><td class="num">' + money(st.opening) + '</td></tr>' : "") +
+    st.rows.map(function (r) {
+      return '<tr' + (r.detail === "Payment" ? ' class="stmt-pay"' : "") + '><td class="date-cell">' + fmtDate(r.date) + '</td>' +
+        '<td><a class="ref-link" href="#/doc/' + encodeURIComponent(r.inv.id) + '">' + escapeHtml(r.ref) + '</a></td>' +
+        '<td>' + r.detail + '</td><td class="date-cell">' + (r.due ? fmtDate(r.due) : "") + '</td>' +
+        '<td class="num">' + cell(r.charge) + '</td><td class="num">' + cell(r.paid) + '</td><td class="num">' + money(r.balance) + '</td></tr>';
+    }).join("");
+  if (!st.rows.length) body += '<tr><td colspan="7" class="list-empty">' + (st.any ? "Nothing in these dates." : "No invoices sent to this client yet — sent and paid invoices show here.") + '</td></tr>';
+  var summary = '<div class="stmt-summary">' +
+      (st.from ? '<div><span class="stat-label">Brought forward</span><b>' + money(st.opening) + '</b></div>' : "") +
+      '<div><span class="stat-label">Invoiced</span><b>' + money(st.charged) + '</b></div>' +
+      '<div><span class="stat-label">Paid</span><b>' + money(st.paid) + '</b></div>' +
+      '<div><span class="stat-label">' + (st.to && st.to < todayIso() ? "Balance at " + fmtDate(st.to) : "Balance outstanding") + '</span><b class="accent">' + money(st.closing) + '</b></div></div>';
+  return '<div class="card log-table-wrap stmt-card"><div class="cap-head"><span class="cap-title">Invoices &amp; payments</span><span class="lr-sub">' + escapeHtml(statementPeriod(st)) + '</span></div>' +
+    '<div class="stmt-bar">' + dates + buttons + '</div>' + summary +
+    '<div class="table-scroll"><table class="log-table stmt-table"><thead><tr><th>Date</th><th>Reference</th><th>Detail</th><th>Due</th><th class="num">Charge</th><th class="num">Paid</th><th class="num">Balance</th></tr></thead><tbody>' +
+    body + '</tbody></table></div></div>';
 }
 
 /* ---------- Price list ---------- */
