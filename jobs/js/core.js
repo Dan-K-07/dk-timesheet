@@ -7,7 +7,7 @@
    to the other.
    ===================================================================== */
 
-var JOBS_VERSION = "2.0.1"; // bump this whenever you change the Jobs app
+var JOBS_VERSION = "2.1.0"; // bump this whenever you change the Jobs app
 var SUPABASE_URL = "https://axiqpqjquywvzymmzwgr.supabase.co";
 var SUPABASE_ANON_KEY = "sb_publishable_gO1jSR_OETTKmwCz-hEb3w_JUYS1tik";
 var AUTH_STORAGE_KEY = "dk_timesheet_auth_v1"; // shared with the timesheet
@@ -91,7 +91,7 @@ var state = {
   expEditingId: null, expAdding: false, expFromJob: null,
   mileEditingId: null, mileAdding: false, mileFromJob: null,
   clientEditingId: null, clientAdding: false, clientEditing: false,
-  projectNaming: false, projectOpen: {}, histSort: { key: "jobDate", dir: -1 },
+  projectNaming: false, projectOpen: {}, histSort: { key: "jobDate", dir: -1 }, stmtRange: {},
   productEditingId: null, productAdding: false,
   receiptBusy: false,
   // Unsaved changes: edits stay on screen until you press Save.

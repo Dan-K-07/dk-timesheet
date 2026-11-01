@@ -89,7 +89,7 @@ function renderClientPage(id) {
     stat("Outstanding", money(st.owed), st.owed ? "" : "Nothing owed", st.owed ? "warn" : "muted") +
   '</div>';
 
-  return head + details + stats + renderProjects(c) + renderClientHistory(c) +
+  return head + details + stats + renderProjects(c) + renderClientHistory(c) + renderStatement(c) +
     '<div class="btn-row side-btns client-foot">' + btn("＋ New job for this client", "new-job", { id: c.id, cls: "btn-sm" }) + btn("Delete client", "client-delete", { id: c.id, cls: "btn-sm btn-danger" }) + '</div>';
 }
 
@@ -170,6 +170,37 @@ function renderClientHistory(c) {
     '<div class="table-scroll"><table class="log-table hist-table"><thead><tr>' + th("ref", "Job ref") + th("job", "Job") + th("jobDate", "Job date") + th("invoice", "Invoice") +
       th("invDate", "Inv date") + th("due", "Due date") + th("amount", "Amount", "num") + th("status", "Status") + th("paid", "Date paid") + '</tr></thead><tbody>' +
     (body || '<tr><td colspan="9" class="list-empty">No jobs for this client yet.</td></tr>') + '</tbody></table></div></div>';
+}
+
+/* Statement of account: invoices and payments with a running balance,
+   for a date range or everything. Downloads as a PDF. */
+function renderStatement(c) {
+  var range = state.stmtRange[c.id] || {}, st = clientStatement(c.id, range.from, range.to), ranged = !!(range.from || range.to);
+  var dates = '<div class="stmt-dates">' +
+      field("From", '<input type="date" class="field-input" id="stmtFrom" data-id="' + attr(c.id) + '" value="' + attr(range.from || "") + '">') +
+      field("To", '<input type="date" class="field-input" id="stmtTo" data-id="' + attr(c.id) + '" value="' + attr(range.to || "") + '">') +
+      (ranged ? btn("Clear dates", "stmt-clear", { id: c.id, cls: "btn-sm" }) : "") + '</div>';
+  var buttons = '<div class="btn-row">' +
+      btn(ranged ? "Download PDF (these dates)" : "Download PDF", "stmt-pdf", { id: c.id, cls: "btn-primary", disabled: !st.any }) +
+      (ranged ? btn("Download full history", "stmt-pdf-all", { id: c.id, disabled: !st.any }) : "") + '</div>';
+  var cell = function (n) { return n ? money(n) : ""; };
+  var body = (st.from ? '<tr class="stmt-bf"><td class="date-cell">' + fmtDate(st.from) + '</td><td></td><td>Balance brought forward</td><td></td><td></td><td></td><td class="num">' + money(st.opening) + '</td></tr>' : "") +
+    st.rows.map(function (r) {
+      return '<tr' + (r.detail === "Payment" ? ' class="stmt-pay"' : "") + '><td class="date-cell">' + fmtDate(r.date) + '</td>' +
+        '<td><a class="ref-link" href="#/doc/' + encodeURIComponent(r.inv.id) + '">' + escapeHtml(r.ref) + '</a></td>' +
+        '<td>' + r.detail + '</td><td class="date-cell">' + (r.due ? fmtDate(r.due) : "") + '</td>' +
+        '<td class="num">' + cell(r.charge) + '</td><td class="num">' + cell(r.paid) + '</td><td class="num">' + money(r.balance) + '</td></tr>';
+    }).join("");
+  if (!st.rows.length) body += '<tr><td colspan="7" class="list-empty">' + (st.any ? "Nothing in these dates." : "No invoices sent to this client yet — sent and paid invoices show here.") + '</td></tr>';
+  var summary = '<div class="stmt-summary">' +
+      (st.from ? '<div><span class="stat-label">Brought forward</span><b>' + money(st.opening) + '</b></div>' : "") +
+      '<div><span class="stat-label">Invoiced</span><b>' + money(st.charged) + '</b></div>' +
+      '<div><span class="stat-label">Paid</span><b>' + money(st.paid) + '</b></div>' +
+      '<div><span class="stat-label">' + (st.to && st.to < todayIso() ? "Balance at " + fmtDate(st.to) : "Balance outstanding") + '</span><b class="accent">' + money(st.closing) + '</b></div></div>';
+  return '<div class="card log-table-wrap stmt-card"><div class="cap-head"><span class="cap-title">Statement of account</span><span class="lr-sub">' + escapeHtml(statementPeriod(st)) + '</span></div>' +
+    '<div class="stmt-bar">' + dates + buttons + '</div>' + summary +
+    '<div class="table-scroll"><table class="log-table stmt-table"><thead><tr><th>Date</th><th>Reference</th><th>Detail</th><th>Due</th><th class="num">Charge</th><th class="num">Paid</th><th class="num">Balance</th></tr></thead><tbody>' +
+    body + '</tbody></table></div></div>';
 }
 
 /* ---------- Price list ---------- */

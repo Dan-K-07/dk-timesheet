@@ -111,6 +111,36 @@ function invoiceStatusText(i) {
   if (isOverdue(i)) return "Overdue (" + daysBetween(i.due, todayIso()) + "d)";
   return { draft: "Draft", sent: "Sent", void: "Void" }[i.status] || i.status;
 }
+/* Statement of account: every invoice sent to the client (a charge) and
+   every invoice paid (a payment), oldest first, with a running balance.
+   With a date range, everything before it is rolled into the balance
+   brought forward. from/to are ISO dates; either can be blank. */
+function clientStatement(clientId, from, to) {
+  var all = [];
+  liveInvoices().forEach(function (i) {
+    if (i.clientId !== clientId || (i.status !== "sent" && i.status !== "paid")) return;
+    var gross = docTotals(i).gross;
+    all.push({ date: i.date || "", ref: i.number, detail: "Invoice", due: i.due || "", charge: gross, paid: 0, inv: i, order: 0 });
+    if (i.status === "paid") all.push({ date: i.paidDate || i.date || "", ref: i.number, detail: "Payment", due: "", charge: 0, paid: gross, inv: i, order: 1 });
+  });
+  all.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.order - b.order || String(a.ref).localeCompare(String(b.ref)); });
+  var opening = 0, rows = [], charged = 0, paid = 0;
+  all.forEach(function (r) {
+    if (from && r.date < from) { opening = round2(opening + r.charge - r.paid); return; }
+    if (to && r.date > to) return;
+    rows.push(r); charged += r.charge; paid += r.paid;
+  });
+  var bal = opening;
+  rows.forEach(function (r) { bal = round2(bal + r.charge - r.paid); r.balance = bal; });
+  return { from: from || "", to: to || "", opening: opening, rows: rows, charged: round2(charged), paid: round2(paid), closing: bal, any: all.length > 0 };
+}
+// "1 Aug 2026 to 31 Oct 2026", "From 1 Aug 2026", "Up to 31 Oct 2026" or "All transactions to date".
+function statementPeriod(st) {
+  if (st.from && st.to) return fmtDate(st.from) + " to " + fmtDate(st.to);
+  if (st.from) return "From " + fmtDate(st.from);
+  if (st.to) return "Up to " + fmtDate(st.to);
+  return "All transactions to date";
+}
 function isOverdue(inv) { return inv.kind === "invoice" && inv.status === "sent" && inv.due && inv.due < todayIso(); }
 
 /* Things on a job not yet put on an invoice: line items without an
