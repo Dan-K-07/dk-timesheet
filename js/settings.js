@@ -18,6 +18,8 @@ var DEFAULT_SETTINGS = {
   customEarnings: {}, // { "2026-04": 2650.5 }
   earningsTaxBasis: "before", // salary / custom amounts are "before" or "after" tax
   taxCode: "", // used by the Take-Home Pay calculator, e.g. "1257L"
+  dailyHours: 8, // normal working day (hours worked); more than this on a work day is overtime
+  leaveYears: {}, // holiday allowance per year: { "2026": { days: 20, bank: 8, carry: 0 } }
   typeColors: {} // e.g. { "Warehouse": "#2c8c99" }; missing types use the theme colours
 };
 
@@ -45,7 +47,7 @@ var TYPE_COLOR_PALETTE = [
   { name: "Brown", hex: "#8a5a3c" }, { name: "Grey", hex: "#7a7468" }
 ];
 // CSS variable name for each type (matches the --t-* variables in styles.css)
-var TYPE_VAR = { "Warehouse": "warehouse", "On Site": "onsite", "Holiday": "holiday", "Sick": "sick", "Off": "off" };
+var TYPE_VAR = { "Warehouse": "warehouse", "On Site": "onsite", "Holiday": "holiday", "TOIL": "toil", "Sick": "sick", "Off": "off" };
 var PANEL_LIGHT = "#ffffff", PANEL_DARK = "#232527";
 
 function isHexColor(v) { return typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v); }
@@ -129,6 +131,18 @@ function normalizeSettings(saved) {
   s.customEarnings = cleanCustomEarnings(s.customEarnings);
   if (s.earningsTaxBasis !== "after") s.earningsTaxBasis = "before";
   s.taxCode = typeof s.taxCode === "string" ? s.taxCode.toUpperCase().replace(/[^A-Z0-9 \/]/g, "").slice(0, 12) : "";
+  var dh = parseFloat(s.dailyHours);
+  s.dailyHours = isNaN(dh) ? 8 : Math.max(0, Math.min(24, dh));
+  var ly = {};
+  if (s.leaveYears && typeof s.leaveYears === "object" && !Array.isArray(s.leaveYears)) {
+    Object.keys(s.leaveYears).forEach(function (k) {
+      var v = s.leaveYears[k];
+      if (!/^\d{4}$/.test(k) || !v || typeof v !== "object") return;
+      var n = function (x) { x = parseFloat(x); return isNaN(x) ? 0 : x; };
+      ly[k] = { days: Math.max(0, n(v.days)), bank: Math.max(0, n(v.bank)), carry: n(v.carry) };
+    });
+  }
+  s.leaveYears = ly;
   return s;
 }
 function cleanCategoryList(list) {
@@ -228,6 +242,7 @@ function renderSettings() {
       '<p class="settings-help">How dates appear in All Data and Documents. Examples use today’s date.</p>' +
       '<div class="settings-options">' + options + '</div>' +
     '</div>' +
+    renderToilSettings() +
     renderCategorySettings() +
     renderEarningsSettings() +
     '<div class="card calc-card settings-section">' +
@@ -237,6 +252,18 @@ function renderSettings() {
     '</div>' +
     '<p class="footnote">Settings are saved to your account, so they\u2019re the same on every device you log in on. Light/dark mode is set per device. Exports are not affected.</p>';
 }
+
+function renderToilSettings() {
+  var t = toilTotals();
+  return '<div class="card calc-card settings-section">' +
+    '<h3 class="settings-title">Overtime &amp; TOIL</h3>' +
+    '<p class="settings-help">Hours worked over your normal day on a Warehouse or On Site day count as overtime. On each entry with overtime you choose how many hours are paid and how many are banked as TOIL (hour for hour). Take TOIL with a <b>TOIL</b> day — it’s paid like a holiday and comes off your balance. Set this to 0 to stop tracking overtime.</p>' +
+    '<label class="salary-field toil-day-field">Normal working day (hours worked, after breaks)' +
+      '<input type="number" min="0" max="24" step="0.25" class="field-input" id="dailyHoursInput" value="' + escapeHtml(String(state.settings.dailyHours)) + '"></label>' +
+    ((t.earned || t.used) ? '<p class="settings-help toil-balance-line">TOIL balance: <b>' + fmtToil(t.balance) + '</b> (' + fmtToil(t.earned) + ' banked, ' + fmtToil(t.used) + ' taken)</p>' : '') +
+  '</div>';
+}
+function fmtToil(n) { var v = Math.round(n * 100) / 100; return (v < 0 ? "\u2212" : "") + fmtHours(Math.abs(v)) + " hr" + (Math.abs(v) === 1 ? "" : "s"); }
 
 function renderCategorySettings() {
   var cats = expenseCategories();
@@ -375,6 +402,15 @@ function attachCategoryEvents() {
 }
 
 function attachSettingsEvents() {
+  bindIf("dailyHoursInput", "change", function (ev) {
+    if (render.busy) return; // the box losing focus as the page redraws
+    var v = parseFloat(ev.target.value);
+    if (v === state.settings.dailyHours) return;
+    if (isNaN(v) || v < 0 || v > 24) { toast("Enter the hours in a normal working day, 0 to 24."); ev.target.value = state.settings.dailyHours; return; }
+    saveSetting("dailyHours", v);
+    toast(v ? "Overtime is anything over " + fmtHours(v) + " hours worked." : "Overtime tracking is off.");
+    render();
+  });
   attachCategoryEvents();
   attachEarningsEvents();
   document.querySelectorAll('input[name="dateFormat"]').forEach(function (radio) {

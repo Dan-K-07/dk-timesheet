@@ -203,6 +203,7 @@ function summaryStats() {
       "Warehouse": pct("Warehouse", working),
       "On Site": pct("On Site", working),
       "Holiday": pct("Holiday", working),
+      "TOIL": pct("TOIL", working),
       "Sick": pct("Sick", logged)
     }
   };

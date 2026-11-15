@@ -17,6 +17,8 @@
   --sick-bg: #F3DEE0;
   --off: #7A7468;
   --off-bg: #EAE5D9;
+  --toil: #7B5EA7;
+  --toil-bg: #ECE6F5;
   --danger: #A5424B;
   --shadow: 0 1px 2px rgba(40,30,10,0.08), 0 4px 14px rgba(40,30,10,0.06);
   --radius-card: 3px;
@@ -46,6 +48,8 @@
     --sick-bg: #3A2124;
     --off: #9B958A;
     --off-bg: #2E2F30;
+    --toil: #B79BE0;
+    --toil-bg: #302741;
     --danger: #E08A90;
     --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 4px 14px rgba(0,0,0,0.25);
   }
@@ -69,6 +73,8 @@
   --sick-bg: #3A2124;
   --off: #9B958A;
   --off-bg: #2E2F30;
+  --toil: #B79BE0;
+  --toil-bg: #302741;
   --danger: #E08A90;
   --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 4px 14px rgba(0,0,0,0.25);
 }
@@ -309,12 +315,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   --t-holiday: var(--holiday); --t-holiday-bg: var(--holiday-bg);
   --t-sick: var(--sick); --t-sick-bg: var(--sick-bg);
   --t-off: var(--off); --t-off-bg: var(--off-bg);
+  --t-toil: var(--toil); --t-toil-bg: var(--toil-bg);
 }
 .tag-Warehouse { color: var(--t-warehouse); background: var(--t-warehouse-bg); }
 .tag-OnSite { color: var(--t-onsite); background: var(--t-onsite-bg); }
 .tag-Holiday { color: var(--t-holiday); background: var(--t-holiday-bg); }
 .tag-Sick { color: var(--t-sick); background: var(--t-sick-bg); }
 .tag-Off { color: var(--t-off); background: var(--t-off-bg); }
+.tag-TOIL { color: var(--t-toil); background: var(--t-toil-bg); }
 .tag-none { color: var(--ink-dim); background: var(--panel-2); }
 
 /* ---------- Monthly table ---------- */
@@ -379,6 +387,25 @@ select, .field-input {
 .field input, .field select { width: 100%; }
 .form-preview { font-family: var(--font-mono); font-size: 13px; color: var(--ink-dim); margin-bottom: 12px; }
 .form-preview b { color: var(--ink); font-weight: 600; }
+.toil-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 13.5px; }
+.toil-bank { display: inline-flex; align-items: center; gap: 6px; }
+.field .toil-bank input { width: 84px; }
+.toil-split { font-size: 12.5px; color: var(--ink-dim); margin-top: 6px; }
+.toil-badge { font-size: 11px; font-weight: 600; color: var(--t-toil); white-space: nowrap; }
+.toil-neg { color: var(--danger); }
+.toil-day-field { display: block; max-width: 360px; }
+.toil-day-field input { margin-top: 4px; }
+/* Holiday & TOIL tab */
+.leave-allow-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px; }
+.leave-table td, .leave-table th { white-space: nowrap; }
+.leave-table .notes-cell { max-width: 220px; }
+.leave-future td { color: var(--ink-dim); }
+.leave-booked { font-family: var(--font-ui); font-size: 11px; font-weight: 600; color: var(--accent); margin-left: 4px; }
+.leave-open td { font-style: italic; color: var(--ink-dim); background: var(--panel-2); }
+.leave-scroll { overflow-x: auto; }
+.leave-bank-table { min-width: 520px; }
+.leave-sub { font-size: 11px; color: var(--ink-dim); font-family: var(--font-ui); }
+.leave-year-note { margin-left: 0; }
 .copy-title { font-family: var(--font-head); font-weight: 700; font-size: 15px; }
 .copy-source { font-family: var(--font-mono); font-size: 13px; color: var(--ink-dim); margin: 2px 0 12px; }
 .copy-day-row { display: flex; flex-wrap: wrap; gap: 6px 14px; }

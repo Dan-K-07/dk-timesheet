@@ -43,6 +43,7 @@ function attachEvents() {
   bindIf("navScrim", "click", function () { state.navOpen = false; render(); });
   attachSettingsEvents();
   attachExpenseEvents();
+  attachLeaveEvents();
 
   bindIf("addBtn", "click", function () { state.adding = true; state.editingId = null; state.copyingId = null; render(); scrollToForm(); });
   bindIf("emptyAdd", "click", function () { state.tab = "log"; state.adding = true; render(); scrollToForm(); });
@@ -66,6 +67,10 @@ function attachEvents() {
   if (saveBtn) saveBtn.addEventListener("click", function () {
     var vals = readFormValues();
     if (!vals.date) { toast("Pick a date before saving."); return; }
+    // TOIL can only be banked from overtime on a work day, and no more than the overtime.
+    var ot = computeOvertime(vals), banked = parseFloat(vals.toilHrs);
+    if (!ot || isNaN(banked) || banked <= 0) vals.toilHrs = "";
+    else if (banked > ot) { vals.toilHrs = String(ot); toast("TOIL capped at the " + fmtHours(ot) + " hours of overtime."); }
     var existingId = saveBtn.getAttribute("data-existing-id");
     if (vals.rate !== "") saveRate(vals.rate);
     if (existingId) {
@@ -82,12 +87,15 @@ function attachEvents() {
     toast("Saved.");
   });
 
-  ["f_date","f_start","f_end","f_break","f_rate","f_type"].forEach(function (id) {
+  ["f_date","f_start","f_end","f_break","f_rate","f_type","f_toil"].forEach(function (id) {
     var el = document.getElementById(id);
     if (!el) return;
     el.addEventListener("input", updatePreview);
     el.addEventListener("change", updatePreview);
   });
+  bindIf("toilNone", "click", function () { document.getElementById("f_toil").value = ""; updatePreview(); });
+  bindIf("toilAll", "click", function () { document.getElementById("f_toil").value = String(computeOvertime(readFormValues())); updatePreview(); });
+  if (document.getElementById("toilRow")) updatePreview();
 
   document.querySelectorAll("[data-edit]").forEach(function (btn) {
     btn.addEventListener("click", function () {
@@ -307,9 +315,25 @@ function bindIf(id, evt, fn) {
 }
 
 function updatePreview() {
+  if (render.busy || !document.getElementById("f_date")) return;
   var vals = readFormValues();
+  var saveBtn = document.getElementById("saveEntry");
+  updateToilRow(vals);
   var preview = document.getElementById("formPreview");
-  if (preview) preview.innerHTML = formPreviewText(vals);
+  if (preview) preview.innerHTML = formPreviewText(vals, saveBtn ? saveBtn.getAttribute("data-existing-id") : "");
+}
+// Overtime row in the entry form: only on work days that go over your normal day.
+function updateToilRow(vals) {
+  var row = document.getElementById("toilRow");
+  if (!row) return;
+  var ot = computeOvertime(vals);
+  row.hidden = !ot;
+  if (!ot) return;
+  var banked = Math.min(Math.max(0, parseFloat(vals.toilHrs) || 0), ot);
+  document.getElementById("toilInfo").innerHTML = '<b>' + fmtHours(ot) + ' hr' + (ot === 1 ? "" : "s") + '</b> over your ' + fmtHours(normalDayHours()) + '-hour day.';
+  document.getElementById("toilSplit").textContent = banked
+    ? fmtToil(ot - banked) + " paid now, " + fmtToil(banked) + " added to your TOIL balance." + (parseFloat(vals.toilHrs) > ot ? " (Capped at the overtime.)" : "")
+    : "All overtime is paid. Bank some as TOIL if you'll take it as time off instead.";
 }
 
 // Save the tax code to the account and update the hint + region lock in place.

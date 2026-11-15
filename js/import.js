@@ -54,7 +54,8 @@ function importWorkbook(wb) {
     brk: col(["break"]),
     rate: col(["rate"]),
     type: col(["type"]),
-    notes: col(["notes"])
+    notes: col(["notes"]),
+    toil: col(["toil banked", "toil"])
   };
   if (idx.date === -1) { toast("Couldn't find a Date column in that sheet."); return; }
 
@@ -85,6 +86,7 @@ function importWorkbook(wb) {
     if (idx.rate !== -1) entry.rate = row[idx.rate] === "" ? "" : parseFloat(row[idx.rate]);
     if (idx.type !== -1) entry.type = String(row[idx.type] || "").trim();
     if (idx.notes !== -1) entry.notes = String(row[idx.notes] || "").trim();
+    if (idx.toil !== -1) entry.toilHrs = row[idx.toil] === "" ? "" : String(parseFloat(row[idx.toil]) || "");
 
     byDate[iso] = entry;
     imported++;
