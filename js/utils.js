@@ -92,7 +92,12 @@ function toilTotals(entries) {
 
 function fmtHours(n) { return n === null || isNaN(n) ? "\u2014" : n.toFixed(2).replace(/\.00$/, "") ; }
 function fmtHoursFixed(n) { return n === null || isNaN(n) ? "\u2014" : n.toFixed(2); }
-function fmtPay(n) { return n === null || isNaN(n) ? "\u2014" : "\u00A3" + n.toFixed(2); }
+// "£57,166.09" - commas every three digits; a minus goes in front ("-£12.00").
+function fmtPay(n) {
+  if (n === null || isNaN(n)) return "\u2014";
+  var r = Math.round(n * 100) / 100;
+  return (r < 0 ? "-" : "") + "\u00A3" + Math.abs(r).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
 function fmtDate(iso) {
   if (!iso) return "\u2014";
   var d = new Date(iso + "T00:00:00");
