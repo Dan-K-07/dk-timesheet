@@ -1,9 +1,9 @@
 "use strict";
 
 /* ============ Constants ============ */
-var APP_VERSION = "2.10.1"; // bump this whenever you change the app
-var TYPES = ["Warehouse", "On Site", "Holiday", "Sick", "Off"];
-var TYPE_CLASS = { "Warehouse": "tag-Warehouse", "On Site": "tag-OnSite", "Holiday": "tag-Holiday", "Sick": "tag-Sick", "Off": "tag-Off" };
+var APP_VERSION = "2.11.0"; // bump this whenever you change the app
+var TYPES = ["Warehouse", "On Site", "Holiday", "TOIL", "Sick", "Off"];
+var TYPE_CLASS = { "Warehouse": "tag-Warehouse", "On Site": "tag-OnSite", "Holiday": "tag-Holiday", "TOIL": "tag-TOIL", "Sick": "tag-Sick", "Off": "tag-Off" };
 var STORAGE_KEY = "dk_timesheet_entries_v1";
 var RATE_KEY = "dk_timesheet_last_rate_v1";
 var THEME_KEY = "dk_timesheet_theme_v1";

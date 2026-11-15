@@ -7,7 +7,7 @@ body.dk-theme {
   --bg: #F3F5FA; --panel: #FFFFFF; --panel-2: #F6F7FC; --ink: #1D2033; --ink-dim: #6C7290; --line: #E5E8F1;
   --accent: #4C5FD5; --accent-ink: #FFFFFF; --accent-soft: #ECEFFD;
   --warehouse: #3A6FD8; --warehouse-bg: #E7EEFC; --onsite: #D7860B; --onsite-bg: #FDF1DE;
-  --holiday: #14936B; --holiday-bg: #DFF5EC; --sick: #D2475B; --sick-bg: #FCE6E9; --off: #6C7290; --off-bg: #EEF0F6;
+  --holiday: #14936B; --holiday-bg: #DFF5EC; --sick: #D2475B; --sick-bg: #FCE6E9; --off: #6C7290; --off-bg: #EEF0F6; --toil: #7A4FC9; --toil-bg: #EFE8FB;
   --danger: #D2475B;
   --shadow: 0 1px 2px rgba(25,30,60,0.05), 0 6px 18px rgba(25,30,60,0.05);
   --radius-card: 14px; --radius-tag: 8px;
@@ -21,7 +21,7 @@ body.dk-theme {
     --bg: #12141D; --panel: #1B1E2B; --panel-2: #222636; --ink: #E9EBF5; --ink-dim: #9298B3; --line: #2C3043;
     --accent: #7C8CF0; --accent-ink: #10132A; --accent-soft: #262B4A;
     --warehouse: #7FA4F2; --warehouse-bg: #1F2A45; --onsite: #F0B252; --onsite-bg: #3A2D16;
-    --holiday: #4FD1A5; --holiday-bg: #16352B; --sick: #F08493; --sick-bg: #3C1F25; --off: #9298B3; --off-bg: #262A3A;
+    --holiday: #4FD1A5; --holiday-bg: #16352B; --sick: #F08493; --sick-bg: #3C1F25; --off: #9298B3; --off-bg: #262A3A; --toil: #B69CF0; --toil-bg: #2C2442;
     --danger: #F08493; --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 18px rgba(0,0,0,0.25); --side-bg: #171A26;
   }
 }
@@ -29,7 +29,7 @@ body.dk-theme {
   --bg: #12141D; --panel: #1B1E2B; --panel-2: #222636; --ink: #E9EBF5; --ink-dim: #9298B3; --line: #2C3043;
   --accent: #7C8CF0; --accent-ink: #10132A; --accent-soft: #262B4A;
   --warehouse: #7FA4F2; --warehouse-bg: #1F2A45; --onsite: #F0B252; --onsite-bg: #3A2D16;
-  --holiday: #4FD1A5; --holiday-bg: #16352B; --sick: #F08493; --sick-bg: #3C1F25; --off: #9298B3; --off-bg: #262A3A;
+  --holiday: #4FD1A5; --holiday-bg: #16352B; --sick: #F08493; --sick-bg: #3C1F25; --off: #9298B3; --off-bg: #262A3A; --toil: #B69CF0; --toil-bg: #2C2442;
   --danger: #F08493; --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 18px rgba(0,0,0,0.25); --side-bg: #171A26;
 }
 body.dk-theme { font-size: 14.5px; }

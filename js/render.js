@@ -10,11 +10,14 @@ function render() {
   }
   var body = state.tab === "summary" ? renderSummary() : state.tab === "docs" ? renderDocuments() : state.tab === "calc" ? renderPayCalc() : state.tab === "expenses" ? renderExpenses() : state.tab === "settings" ? renderSettings() : renderLog();
   var t = currentTab();
-  app.innerHTML = '<div class="shell' + (state.navOpen ? " nav-open" : "") + '">' + renderSidebar() +
+  // Swapping the page out blurs the focused box, which fires its change
+  // handler; render.busy tells those handlers not to touch the old page.
+  render.busy = true;
+  try { app.innerHTML = '<div class="shell' + (state.navOpen ? " nav-open" : "") + '">' + renderSidebar() +
     '<div class="nav-scrim" id="navScrim"></div>' +
     '<main class="main">' + renderMobileBar() + '<div class="main-inner">' +
       '<div class="page-header"><div><h1 class="page-h1">' + t.label + '</h1><div class="page-sub">' + t.sub + '</div></div></div>' +
-      body + '</div></main></div>';
+      body + '</div></main></div>'; } finally { render.busy = false; }
   attachEvents();
 }
 
@@ -331,9 +334,9 @@ function renderSummary() {
     '</div>';
   }
 
-  var barColors = { "Warehouse": "var(--t-warehouse)", "On Site": "var(--t-onsite)", "Holiday": "var(--t-holiday)", "Sick": "var(--t-sick)" };
+  var barColors = { "Warehouse": "var(--t-warehouse)", "On Site": "var(--t-onsite)", "Holiday": "var(--t-holiday)", "TOIL": "var(--t-toil)", "Sick": "var(--t-sick)" };
 
-  var bars = ["Warehouse", "On Site", "Holiday", "Sick"].map(function (t) {
+  var bars = ["Warehouse", "On Site", "Holiday", "TOIL", "Sick"].map(function (t) {
     var pct = Math.round(s.breakdown[t] * 1000) / 10;
     return '<div class="bar-row">' +
       '<span class="bar-tag ' + TYPE_CLASS[t] + '">' + t + '</span>' +
@@ -365,11 +368,24 @@ function renderSummary() {
       '<div class="card stat-card"><div class="stat-label">Average pay / month</div><div class="stat-value" style="font-size:19px">' + fmtPay(s.avgPay) + '</div></div>' +
       '<div class="card stat-card"><div class="stat-label">Days logged</div><div class="stat-value" style="font-size:19px">' + s.entryCount + '</div></div>' +
     '</div>' +
+    renderToilCards() +
     '<div class="section-title">Day type breakdown</div>' +
     '<div class="card breakdown">' + bars + '</div>' +
     '<div class="section-title">Month by month</div>' +
     '<div class="card month-table"><table><thead><tr><th>Month</th><th class="num">Hours worked</th><th class="num">Pay</th></tr></thead><tbody>' + monthRows + '</tbody></table></div>' +
     '<p class="footnote">Months are calendar months (1st\u2013last day), grouped from whatever dates are in All Data \u2014 add or import entries and this updates on its own.</p>';
+}
+
+// TOIL balance (all time, not just the date range above).
+function renderToilCards() {
+  var t = toilTotals();
+  if (!t.earned && !t.used) return "";
+  return '<div class="section-title">TOIL <span class="section-sub">time off in lieu \u00B7 all time</span></div>' +
+    '<div class="stat-grid">' +
+      '<div class="card stat-card"><div class="stat-label">TOIL balance</div><div class="stat-value' + (t.balance < 0 ? " toil-neg" : "") + '">' + fmtToil(t.balance) + '</div><div class="stat-sub">' + (t.balance > 0 ? "Left to take" : t.balance < 0 ? "Taken more than banked" : "All taken") + '</div></div>' +
+      '<div class="card stat-card"><div class="stat-label">Banked</div><div class="stat-value" style="font-size:19px">' + fmtToil(t.earned) + '</div><div class="stat-sub">Overtime kept as TOIL</div></div>' +
+      '<div class="card stat-card"><div class="stat-label">Taken</div><div class="stat-value" style="font-size:19px">' + fmtToil(t.used) + '</div><div class="stat-sub">TOIL days</div></div>' +
+    '</div>';
 }
 
 function renderRangeBar() {
@@ -517,7 +533,7 @@ function renderRow(e) {
     '<td class="mono">' + (e.end || "\u2014") + '</td>' +
     '<td class="num">' + (e.breakHrs === "" || e.breakHrs === undefined || e.breakHrs === null ? "\u2014" : e.breakHrs) + '</td>' +
     '<td class="num">' + fmtHours(hours) + '</td>' +
-    '<td class="num center">' + fmtHours(hw) + '</td>' +
+    '<td class="num center">' + fmtHours(hw) + (toilBanked(e) ? '<div class="toil-badge">+' + fmtHours(toilBanked(e)) + ' TOIL</div>' : '') + '</td>' +
     '<td class="num">' + (e.rate === "" || e.rate === undefined || e.rate === null || e.rate === "" ? "\u2014" : "\u00A3" + parseFloat(e.rate).toFixed(2)) + '</td>' +
     '<td class="num">' + fmtPay(pay) + '</td>' +
     '<td>' + typeTag + '</td>' +
@@ -537,7 +553,7 @@ function typeOptionsHtml(selected) {
 }
 
 function renderEntryForm(existing) {
-  var e = existing || { date: "", start: "", end: "", breakHrs: "0.5", rate: state.lastRate || "", type: "Off", notes: "" };
+  var e = existing || { date: "", start: "", end: "", breakHrs: "0.5", rate: state.lastRate || "", type: "Off", notes: "", toilHrs: "" };
   return '<div class="card entry-form" id="entryForm">' +
     '<div class="form-grid">' +
       '<div class="field"><label>Date</label><input type="date" class="field-input" id="f_date" value="' + escapeHtml(e.date) + '"></div>' +
@@ -547,6 +563,12 @@ function renderEntryForm(existing) {
       '<div class="field"><label>Rate (\u00A3/hr)</label><input type="number" step="0.01" min="0" class="field-input" id="f_rate" value="' + escapeHtml(e.rate) + '"></div>' +
       '<div class="field"><label>Type</label><select id="f_type" class="field-input">' + typeOptionsHtml(e.type) + '</select></div>' +
       '<div class="field full"><label>Notes</label><input type="text" class="field-input" id="f_notes" value="' + escapeHtml(e.notes) + '" placeholder="Optional"></div>' +
+      // Shown when the shift goes over your normal day (see updateToilRow in events.js).
+      '<div class="field full toil-field" id="toilRow" hidden><label>Overtime</label>' +
+        '<div class="toil-line"><span id="toilInfo"></span>' +
+          '<span class="toil-bank">Bank as TOIL <input type="number" step="0.25" min="0" class="field-input" id="f_toil" value="' + escapeHtml(e.toilHrs || "") + '" placeholder="0"> hrs</span>' +
+          '<button type="button" class="btn btn-sm" id="toilNone">All paid</button><button type="button" class="btn btn-sm" id="toilAll">All as TOIL</button></div>' +
+        '<div class="toil-split" id="toilSplit"></div></div>' +
     '</div>' +
     '<div class="form-preview" id="formPreview">' + formPreviewText(e) + '</div>' +
     '<div class="btn-row">' +
@@ -597,9 +619,16 @@ function renderEntryFormRow(e) {
   return '<tr><td colspan="12" style="padding:0;border-bottom:none;">' + renderEntryForm(e) + '</td></tr>';
 }
 
-function formPreviewText(e) {
+function formPreviewText(e, existingId) {
   var hours = computeHours(e), hw = computeHoursWorked(e), pay = computePay(e);
-  return 'Hours: <b>' + fmtHours(hours) + '</b> &nbsp; Worked: <b>' + fmtHours(hw) + '</b> &nbsp; Pay: <b>' + fmtPay(pay) + '</b>';
+  var out = 'Hours: <b>' + fmtHours(hours) + '</b> &nbsp; Worked: <b>' + fmtHours(hw) + '</b> &nbsp; Pay: <b>' + fmtPay(pay) + '</b>';
+  if (e.type === "TOIL") {
+    // Balance left after this TOIL day (not counting the entry being edited twice).
+    var others = state.entries.filter(function (x) { return x.id !== existingId; });
+    var left = toilTotals(others).balance - toilUsed(e);
+    out += '<br>Uses <b>' + fmtToil(toilUsed(e)) + '</b> of TOIL \u00B7 balance after: <b' + (left < 0 ? ' class="toil-neg"' : '') + '>' + fmtToil(left) + '</b>';
+  }
+  return out;
 }
 
 function readFormValues() {
@@ -610,6 +639,7 @@ function readFormValues() {
     breakHrs: document.getElementById("f_break").value,
     rate: document.getElementById("f_rate").value,
     type: document.getElementById("f_type").value,
-    notes: document.getElementById("f_notes").value.trim()
+    notes: document.getElementById("f_notes").value.trim(),
+    toilHrs: document.getElementById("f_toil") ? document.getElementById("f_toil").value : ""
   };
 }

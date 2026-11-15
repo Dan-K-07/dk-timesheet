@@ -2,7 +2,7 @@
 
 /* ============ Export ============ */
 function exportCSV() {
-  var rows = [["Date","Start","End","Hours","Break","Hours Worked","Rate","Pay","Month","Type","Notes"]];
+  var rows = [["Date","Start","End","Hours","Break","Hours Worked","Rate","Pay","Month","Type","Notes","Overtime","TOIL Banked"]];
   sortedEntries().forEach(function (e) {
     var hours = computeHours(e), hw = computeHoursWorked(e), pay = computePay(e);
     rows.push([
@@ -13,7 +13,8 @@ function exportCSV() {
       e.rate === "" || e.rate === undefined || e.rate === null ? "" : e.rate,
       pay === null ? "" : pay.toFixed(2),
       e.date ? monthLabel(monthKey(e.date)) : "",
-      e.type || "", e.notes || ""
+      e.type || "", e.notes || "",
+      computeOvertime(e) ? computeOvertime(e).toFixed(2) : "", toilBanked(e) ? toilBanked(e).toFixed(2) : ""
     ]);
   });
   var csv = rows.map(function (r) {
@@ -26,7 +27,7 @@ function exportCSV() {
   offerDownload(blob, "DK_Timesheet.csv");
 }
 function exportXLSX() {
-  var dataRows = [["Date","Start","End","Hours","Break","Hours Worked","Rate","Pay","Month","Type","Notes"]];
+  var dataRows = [["Date","Start","End","Hours","Break","Hours Worked","Rate","Pay","Month","Type","Notes","Overtime","TOIL Banked"]];
   sortedEntries().forEach(function (e) {
     var hours = computeHours(e), hw = computeHoursWorked(e), pay = computePay(e);
     dataRows.push([
@@ -37,7 +38,8 @@ function exportXLSX() {
       e.rate === "" || e.rate === undefined ? "" : Number(e.rate),
       pay === null ? "" : Number(pay.toFixed(2)),
       e.date ? monthLabel(monthKey(e.date)) : "",
-      e.type || "", e.notes || ""
+      e.type || "", e.notes || "",
+      computeOvertime(e) ? Number(computeOvertime(e).toFixed(2)) : "", toilBanked(e) ? Number(toilBanked(e).toFixed(2)) : ""
     ]);
   });
   var stats = summaryStats();
@@ -48,6 +50,9 @@ function exportXLSX() {
     [],
     ["Warehouse %", "On Site %", "Holiday %", "Sick %"],
     [Math.round(stats.breakdown["Warehouse"] * 1000) / 10, Math.round(stats.breakdown["On Site"] * 1000) / 10, Math.round(stats.breakdown["Holiday"] * 1000) / 10, Math.round(stats.breakdown["Sick"] * 1000) / 10],
+    [],
+    ["TOIL Banked", "TOIL Taken", "TOIL Balance"],
+    (function () { var t = toilTotals(); return [Number(t.earned.toFixed(2)), Number(t.used.toFixed(2)), Number(t.balance.toFixed(2))]; })(),
     [],
     ["Month", "Hours Worked", "Pay"]
   ];
