@@ -43,6 +43,7 @@ function attachEvents() {
   bindIf("navScrim", "click", function () { state.navOpen = false; render(); });
   attachSettingsEvents();
   attachExpenseEvents();
+  attachLeaveEvents();
 
   bindIf("addBtn", "click", function () { state.adding = true; state.editingId = null; state.copyingId = null; render(); scrollToForm(); });
   bindIf("emptyAdd", "click", function () { state.tab = "log"; state.adding = true; render(); scrollToForm(); });

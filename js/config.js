@@ -68,6 +68,7 @@ var state = {
   lastSynced: null,
   selectedIds: {},
   bulkEditOpen: false,
+  leaveYear: null, // year shown on Holiday & TOIL (null = this year)
   copyingId: null, // the entry whose Copy panel is open on All Data
   documents: [],
   docFilterDate: "",

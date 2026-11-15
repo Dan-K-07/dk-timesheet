@@ -19,6 +19,7 @@ var DEFAULT_SETTINGS = {
   earningsTaxBasis: "before", // salary / custom amounts are "before" or "after" tax
   taxCode: "", // used by the Take-Home Pay calculator, e.g. "1257L"
   dailyHours: 8, // normal working day (hours worked); more than this on a work day is overtime
+  leaveYears: {}, // holiday allowance per year: { "2026": { days: 20, bank: 8, carry: 0 } }
   typeColors: {} // e.g. { "Warehouse": "#2c8c99" }; missing types use the theme colours
 };
 
@@ -132,6 +133,16 @@ function normalizeSettings(saved) {
   s.taxCode = typeof s.taxCode === "string" ? s.taxCode.toUpperCase().replace(/[^A-Z0-9 \/]/g, "").slice(0, 12) : "";
   var dh = parseFloat(s.dailyHours);
   s.dailyHours = isNaN(dh) ? 8 : Math.max(0, Math.min(24, dh));
+  var ly = {};
+  if (s.leaveYears && typeof s.leaveYears === "object" && !Array.isArray(s.leaveYears)) {
+    Object.keys(s.leaveYears).forEach(function (k) {
+      var v = s.leaveYears[k];
+      if (!/^\d{4}$/.test(k) || !v || typeof v !== "object") return;
+      var n = function (x) { x = parseFloat(x); return isNaN(x) ? 0 : x; };
+      ly[k] = { days: Math.max(0, n(v.days)), bank: Math.max(0, n(v.bank)), carry: n(v.carry) };
+    });
+  }
+  s.leaveYears = ly;
   return s;
 }
 function cleanCategoryList(list) {
