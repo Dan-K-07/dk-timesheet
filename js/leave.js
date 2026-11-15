@@ -63,6 +63,12 @@ function holidayHours(e) {
   return hw !== null ? Math.max(0, hw) : leaveDayHours();
 }
 // Table cell for TOIL: hours, with the days on a small second line.
+// Table cell for holiday: days, with the hours on a small second line when
+// it isn't a whole or half day - keeps the columns narrow.
+function daysCell(hours, minus) {
+  var full = (minus ? "\u2212" : "") + fmtDays(hours), i = full.indexOf(" (");
+  return i === -1 ? full : full.slice(0, i) + '<div class="leave-sub">' + full.slice(i + 2, -1) + '</div>';
+}
 function hrsDaysCell(hours, signed) {
   var full = fmtHrsDays(hours, signed), i = full.indexOf(" (");
   return i === -1 ? full : full.slice(0, i) + '<div class="leave-sub">' + full.slice(i + 2, -1) + '</div>';
@@ -114,10 +120,10 @@ function leaveYear(year) {
       var h = holidayHours(e);
       if (bh) {
         var d = h / dayH; bankLeft = round2(bankLeft - d); bank[future ? "booked" : "taken"] += d;
-        rows.push({ e: e, kind: "bank", label: "Bank holiday", note: bh.name, amount: "−" + fmtDays(h), future: future, holLeft: holLeft, bankLeft: bankLeft, toilBal: toilBal });
+        rows.push({ e: e, kind: "bank", label: "Bank holiday", note: bh.name, amount: daysCell(h, true), future: future, holLeft: holLeft, bankLeft: bankLeft, toilBal: toilBal });
       } else {
         holLeft -= h; hol[future ? "booked" : "taken"] += h;
-        rows.push({ e: e, kind: "holiday", label: "Holiday", amount: "−" + fmtDays(h), future: future, holLeft: holLeft, bankLeft: bankLeft, toilBal: toilBal });
+        rows.push({ e: e, kind: "holiday", label: "Holiday", amount: daysCell(h, true), future: future, holLeft: holLeft, bankLeft: bankLeft, toilBal: toilBal });
       }
     }
     var banked = toilBanked(e), used = toilUsed(e);
@@ -194,21 +200,20 @@ function renderLeave() {
     var cls = { holiday: "tag-Holiday", bank: "tag-Holiday", "toil-in": "tag-TOIL", "toil-out": "tag-TOIL" }[r.kind];
     return '<tr class="' + (r.future ? "leave-future" : "") + '">' +
       '<td class="mono date-cell">' + fmtDate(r.e.date) + (r.future ? ' <span class="leave-booked">booked</span>' : '') + '</td>' +
-      '<td><span class="tag ' + cls + '">' + r.label + '</span></td>' +
-      '<td class="notes-cell" title="' + escapeHtml(r.note || r.e.notes || "") + '">' + escapeHtml(r.note || r.e.notes || "") + '</td>' +
+      '<td class="leave-what"><span class="tag ' + cls + '">' + r.label + '</span>' + ((r.note || r.e.notes) ? '<div class="leave-note" title="' + escapeHtml(r.note || r.e.notes) + '">' + escapeHtml(r.note || r.e.notes) + '</div>' : '') + '</td>' +
       '<td class="num">' + r.amount + '</td>' +
-      '<td class="num">' + fmtDays(r.holLeft) + '</td>' +
-      '<td class="num">' + fmtDays(r.bankLeft * leaveDayHours()) + '</td>' +
+      '<td class="num">' + daysCell(r.holLeft) + '</td>' +
+      '<td class="num">' + daysCell(r.bankLeft * leaveDayHours()) + '</td>' +
       '<td class="num">' + hrsDaysCell(r.toilBal) + '</td>' +
     '</tr>';
   }).join("");
-  var opening = '<tr class="leave-open"><td class="mono date-cell">1 Jan</td><td colspan="3">Start of ' + year + (a.carry ? ' (incl. ' + fmtDays(num0(a.carry) * leaveDayHours()) + ' carried over)' : '') + '</td>' +
-    '<td class="num">' + fmtDays(L.holAllowH) + '</td><td class="num">' + fmtDays(L.bankAllow * leaveDayHours()) + '</td><td class="num">' + hrsDaysCell(L.toilBefore) + '</td></tr>';
+  var opening = '<tr class="leave-open"><td class="mono date-cell">1 Jan</td><td colspan="2">Start of ' + year + (a.carry ? ' (incl. ' + fmtDays(num0(a.carry) * leaveDayHours()) + ' carried over)' : '') + '</td>' +
+    '<td class="num">' + daysCell(L.holAllowH) + '</td><td class="num">' + daysCell(L.bankAllow * leaveDayHours()) + '</td><td class="num">' + hrsDaysCell(L.toilBefore) + '</td></tr>';
 
   return toolbar + allowance + stats +
     '<div class="section-title">Holiday &amp; TOIL log <span class="section-sub">' + year + ' · every day off and every hour of TOIL, with what’s left after each</span></div>' +
-    '<div class="card log-table-wrap"><div class="leave-scroll"><table class="log-table leave-table"><thead><tr><th>Date</th><th>What</th><th>Notes</th><th class="num">Used / added</th><th class="num">Holiday left</th><th class="num">Bank hols left</th><th class="num">TOIL balance</th></tr></thead><tbody>' +
-      opening + (logRows || '<tr><td colspan="7" style="text-align:center;color:var(--ink-dim);padding:22px;">No holiday or TOIL in ' + year + ' yet. Log a Holiday or TOIL day in All Data, or bank overtime as TOIL.</td></tr>') +
+    '<div class="card log-table-wrap"><div class="leave-scroll"><table class="log-table leave-table"><thead><tr><th>Date</th><th>What</th><th class="num">Used / added</th><th class="num">Holiday left</th><th class="num">Bank hols left</th><th class="num">TOIL balance</th></tr></thead><tbody>' +
+      opening + (logRows || '<tr><td colspan="6" style="text-align:center;color:var(--ink-dim);padding:22px;">No holiday or TOIL in ' + year + ' yet. Log a Holiday or TOIL day in All Data, or bank overtime as TOIL.</td></tr>') +
     '</tbody></table></div></div>' +
     '<div class="section-title">Bank holidays ' + year + ' <span class="section-sub">England &amp; Wales</span></div>' +
     '<div class="card log-table-wrap"><div class="leave-scroll"><table class="log-table leave-bank-table"><thead><tr><th>Date</th><th>Bank holiday</th><th>You</th></tr></thead><tbody>' + bankRows + '</tbody></table></div></div>' +
