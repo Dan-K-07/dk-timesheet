@@ -389,6 +389,7 @@ select, .field-input {
 .form-preview b { color: var(--ink); font-weight: 600; }
 .toil-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 13.5px; }
 .toil-bank { display: inline-flex; align-items: center; gap: 6px; }
+.toil-field [hidden] { display: none !important; }
 .field .toil-bank input { width: 84px; }
 .toil-split { font-size: 12.5px; color: var(--ink-dim); margin-top: 6px; }
 .toil-badge { font-size: 11px; font-weight: 600; color: var(--t-toil); white-space: nowrap; }
@@ -411,11 +412,24 @@ select, .field-input {
 .clash-about { color: var(--ink-dim); }
 .clash-gap { height: 6px; }
 .clash-more { padding: 8px 12px; font-size: 12.5px; color: var(--ink-dim); background: var(--panel-2); }
-.ts-modal-btns { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.ts-modal-btns { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }
+.ts-modal-wide { max-width: 640px; }
+.clash-list { max-height: 50vh; overflow-y: auto; }
+.clash-pick { grid-column: 2 / -1; display: inline-flex; flex-wrap: wrap; gap: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; justify-self: start; margin-top: 4px; }
+.clash-opt { display: inline-flex; cursor: pointer; }
+.clash-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.clash-opt span { padding: 5px 11px; font-size: 12.5px; font-weight: 600; color: var(--ink-dim); border-left: 1px solid var(--line); }
+.clash-opt:first-child span { border-left: none; }
+.clash-opt input:checked + span { background: var(--accent); color: #fff; }
+.clash-opt input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
+.clash-all { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; font-size: 12.5px; color: var(--ink-dim); }
+.clash-count { margin-right: auto; font-size: 12.5px; color: var(--ink-dim); }
 @media (max-width: 520px) {
   .clash-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .clash-date { grid-column: 1 / -1; }
-  .ts-modal-btns .btn { flex: 1 1 40%; }
+  .clash-pick { grid-column: 1 / -1; }
+  .ts-modal-btns .btn { flex: 1 1 40%; justify-content: center; text-align: center; }
+  .clash-count { flex-basis: 100%; margin: 0 0 2px; }
 }
 /* Holiday & TOIL tab */
 .leave-allow-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px; }

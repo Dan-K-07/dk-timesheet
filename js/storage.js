@@ -14,6 +14,7 @@ function load() {
   loadExpensesCache();
 }
 function save(skipPush) {
+  workByDateCache = null;
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries)); } catch (e) {
     toast("Couldn't save — your browser storage may be full or disabled.");
   }

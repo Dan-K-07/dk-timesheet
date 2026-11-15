@@ -199,6 +199,7 @@ function summaryStats() {
     busiestKey: busiestKey, busiestPay: busiestKey ? byMonth[busiestKey].pay : 0,
     byMonth: byMonth, monthKeys: keys,
     entryCount: rangeEntries.length,
+    dayCount: Object.keys(rangeEntries.reduce(function (m, e) { if (e.date) m[e.date] = 1; return m; }, {})).length,
     breakdown: {
       "Warehouse": pct("Warehouse", working),
       "On Site": pct("On Site", working),

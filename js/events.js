@@ -74,6 +74,7 @@ function attachEvents() {
     if (!ot || isNaN(banked) || banked <= 0) vals.toilHrs = "";
     else if (banked > ot) { vals.toilHrs = String(ot); toast("TOIL capped at the " + fmtHours(ot) + " hours of overtime."); }
     var existingId = saveBtn.getAttribute("data-existing-id");
+    delete vals.id;
     if (vals.rate !== "") saveRate(vals.rate);
     if (existingId) {
       var idx = state.entries.findIndex(function (x) { return x.id === existingId; });
@@ -328,11 +329,24 @@ function updatePreview() {
 function updateToilRow(vals) {
   var row = document.getElementById("toilRow");
   if (!row) return;
-  var ot = computeOvertime(vals);
+  var ot = computeOvertime(vals), split = overtimeMode() === "day" && isWorkDay(vals) ? dayOvertime(vals) : null;
+  var bank = row.querySelector(".toil-bank"), btns = row.querySelectorAll("#toilNone, #toilAll");
+  // Per day, on an earlier shift of a split day: say where the overtime is.
+  if (!ot && split && split.over && split.shifts.length > 1) {
+    row.hidden = false;
+    bank.hidden = true; btns.forEach(function (b) { b.hidden = true; });
+    var last = split.shifts[split.shifts.length - 1];
+    document.getElementById("toilInfo").innerHTML = 'This day comes to <b>' + fmtHours(split.total) + ' hrs</b> over ' + split.shifts.length + ' shifts \u2014 <b>' + fmtHours(split.over) + ' hrs</b> over your ' + fmtHours(normalDayHours()) + '-hour day.';
+    document.getElementById("toilSplit").textContent = "The overtime goes on the day\u2019s last shift (" + (last.start || "?") + "\u2013" + (last.end || "?") + "), so bank any TOIL there.";
+    return;
+  }
+  bank.hidden = false; btns.forEach(function (b) { b.hidden = false; });
   row.hidden = !ot;
   if (!ot) return;
   var banked = Math.min(Math.max(0, parseFloat(vals.toilHrs) || 0), ot);
-  document.getElementById("toilInfo").innerHTML = '<b>' + fmtHours(ot) + ' hr' + (ot === 1 ? "" : "s") + '</b> over your ' + fmtHours(normalDayHours()) + '-hour day.';
+  document.getElementById("toilInfo").innerHTML = split && split.shifts.length > 1
+    ? 'This day comes to <b>' + fmtHours(split.total) + ' hrs</b> over ' + split.shifts.length + ' shifts \u2014 <b>' + fmtHours(ot) + ' hr' + (ot === 1 ? "" : "s") + '</b> over your ' + fmtHours(normalDayHours()) + '-hour day.'
+    : '<b>' + fmtHours(ot) + ' hr' + (ot === 1 ? "" : "s") + '</b> over your ' + fmtHours(normalDayHours()) + '-hour day.';
   document.getElementById("toilSplit").textContent = banked
     ? fmtToil(ot - banked) + " paid now, " + fmtToil(banked) + " added to your TOIL balance." + (parseFloat(vals.toilHrs) > ot ? " (Capped at the overtime.)" : "")
     : "All overtime is paid. Bank some as TOIL if you'll take it as time off instead.";

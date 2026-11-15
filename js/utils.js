@@ -39,11 +39,38 @@ function computePay(entry) {
 // Your normal working day (hours worked, after breaks), from Settings. 0 = overtime not tracked.
 function normalDayHours() { var n = parseFloat(state.settings && state.settings.dailyHours); return n > 0 ? n : 0; }
 function isWorkDay(entry) { return entry.type === "Warehouse" || entry.type === "On Site"; }
-// Hours worked beyond your normal day, on a Warehouse or On Site day.
+// "day": all work entries on a date are added up (a split day of 5 + 5 hrs
+// is 2 hrs over an 8-hour day). "entry": each entry is counted on its own.
+function overtimeMode() { return state.settings && state.settings.overtimeMode === "entry" ? "entry" : "day"; }
+// Work entries per date, built once per redraw (reset by render() and save()).
+var workByDateCache = null;
+function workEntriesOn(date) {
+  if (!workByDateCache) {
+    workByDateCache = {};
+    state.entries.forEach(function (e) { if (e.date && isWorkDay(e)) (workByDateCache[e.date] = workByDateCache[e.date] || []).push(e); });
+  }
+  return workByDateCache[date] || [];
+}
+function shiftOrder(a, b) { return (a.start || "") < (b.start || "") ? -1 : (a.start || "") > (b.start || "") ? 1 : String(a.id || "") < String(b.id || "") ? -1 : 1; }
+// The whole day's overtime, counting this entry as it is now (it may be
+// the entry form's unsaved values, so it replaces its saved copy).
+function dayOvertime(entry) {
+  var day = normalDayHours();
+  if (!day || !entry.date) return { total: 0, over: 0, shifts: [] };
+  var shifts = workEntriesOn(entry.date).filter(function (e) { return !entry.id || e.id !== entry.id; });
+  if (isWorkDay(entry)) shifts = shifts.concat([entry]);
+  shifts.sort(shiftOrder);
+  var total = shifts.reduce(function (s, e) { var h = computeHoursWorked(e); return s + (h === null ? 0 : Math.max(0, h)); }, 0);
+  return { total: total, over: Math.max(0, Math.round((total - day) * 100) / 100), shifts: shifts };
+}
+// Hours worked beyond your normal day, on a Warehouse or On Site day. Per
+// day, the day's overtime sits on its last shift (that's where TOIL is banked).
 function computeOvertime(entry) {
   var hw = computeHoursWorked(entry), day = normalDayHours();
   if (!isWorkDay(entry) || hw === null || !day) return 0;
-  return Math.max(0, Math.round((hw - day) * 100) / 100);
+  if (overtimeMode() === "entry") return Math.max(0, Math.round((hw - day) * 100) / 100);
+  var d = dayOvertime(entry), last = d.shifts[d.shifts.length - 1];
+  return last === entry ? Math.min(d.over, Math.max(0, hw)) : 0;
 }
 // Overtime hours you chose to bank as TOIL on this entry (never more than you worked).
 function toilBanked(entry) {

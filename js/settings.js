@@ -19,6 +19,7 @@ var DEFAULT_SETTINGS = {
   earningsTaxBasis: "before", // salary / custom amounts are "before" or "after" tax
   taxCode: "", // used by the Take-Home Pay calculator, e.g. "1257L"
   dailyHours: 8, // normal working day (hours worked); more than this on a work day is overtime
+  overtimeMode: "day", // "day": add up all shifts on a date; "entry": each shift on its own
   leaveYears: {}, // holiday allowance per year: { "2026": { days: 20, bank: 8, carry: 0 } }
   typeColors: {} // e.g. { "Warehouse": "#2c8c99" }; missing types use the theme colours
 };
@@ -133,6 +134,7 @@ function normalizeSettings(saved) {
   s.taxCode = typeof s.taxCode === "string" ? s.taxCode.toUpperCase().replace(/[^A-Z0-9 \/]/g, "").slice(0, 12) : "";
   var dh = parseFloat(s.dailyHours);
   s.dailyHours = isNaN(dh) ? 8 : Math.max(0, Math.min(24, dh));
+  if (s.overtimeMode !== "entry") s.overtimeMode = "day";
   var ly = {};
   if (s.leaveYears && typeof s.leaveYears === "object" && !Array.isArray(s.leaveYears)) {
     Object.keys(s.leaveYears).forEach(function (k) {
@@ -260,6 +262,10 @@ function renderToilSettings() {
     '<p class="settings-help">Hours worked over your normal day on a Warehouse or On Site day count as overtime. On each entry with overtime you choose how many hours are paid and how many are banked as TOIL (hour for hour). Take TOIL with a <b>TOIL</b> day — it’s paid like a holiday and comes off your balance. Set this to 0 to stop tracking overtime.</p>' +
     '<label class="salary-field toil-day-field">Normal working day (hours worked, after breaks)' +
       '<input type="number" min="0" max="24" step="0.25" class="field-input" id="dailyHoursInput" value="' + escapeHtml(String(state.settings.dailyHours)) + '"></label>' +
+    '<div class="settings-options ot-mode">' +
+      '<label class="settings-option"><input type="radio" name="overtimeMode" value="day"' + (overtimeMode() === "day" ? " checked" : "") + '> <span><b>Per day</b> \u2014 add up all shifts on the same date (a split day of 5 + 5 hrs is 2 hrs over an 8-hour day). The overtime goes on the day\u2019s last shift.</span></label>' +
+      '<label class="settings-option"><input type="radio" name="overtimeMode" value="entry"' + (overtimeMode() === "entry" ? " checked" : "") + '> <span><b>Per entry</b> \u2014 each shift on its own.</span></label>' +
+    '</div>' +
     ((t.earned || t.used) ? '<p class="settings-help toil-balance-line">TOIL balance: <b>' + fmtToil(t.balance) + '</b> (' + fmtToil(t.earned) + ' banked, ' + fmtToil(t.used) + ' taken)</p>' : '') +
   '</div>';
 }
@@ -402,6 +408,9 @@ function attachCategoryEvents() {
 }
 
 function attachSettingsEvents() {
+  document.querySelectorAll('input[name="overtimeMode"]').forEach(function (r) {
+    r.addEventListener("change", function () { saveSetting("overtimeMode", r.value); toast(r.value === "day" ? "Overtime is counted per day." : "Overtime is counted per entry."); render(); });
+  });
   bindIf("dailyHoursInput", "change", function (ev) {
     if (render.busy) return; // the box losing focus as the page redraws
     var v = parseFloat(ev.target.value);

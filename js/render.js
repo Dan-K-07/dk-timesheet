@@ -2,6 +2,7 @@
 
 /* ============ Rendering ============ */
 function render() {
+  workByDateCache = null;
   var app = document.getElementById("app");
   if (!state.authed) {
     app.innerHTML = renderGate();
@@ -368,7 +369,7 @@ function renderSummary() {
     '<div class="stat-grid">' +
       '<div class="card stat-card"><div class="stat-label">Average hours / month</div><div class="stat-value" style="font-size:19px">' + fmtHoursFixed(s.avgHours) + ' hrs</div></div>' +
       '<div class="card stat-card"><div class="stat-label">Average pay / month</div><div class="stat-value" style="font-size:19px">' + fmtPay(s.avgPay) + '</div></div>' +
-      '<div class="card stat-card"><div class="stat-label">Days logged</div><div class="stat-value" style="font-size:19px">' + s.entryCount + '</div></div>' +
+      '<div class="card stat-card"><div class="stat-label">Days logged</div><div class="stat-value" style="font-size:19px">' + s.dayCount + '</div>' + (s.entryCount > s.dayCount ? '<div class="stat-sub">' + s.entryCount + ' entries (some days are split)</div>' : '') + '</div>' +
     '</div>' +
     renderToilCards() +
     '<div class="section-title">Day type breakdown</div>' +
@@ -636,7 +637,9 @@ function formPreviewText(e, existingId) {
 }
 
 function readFormValues() {
+  var saveBtn = document.getElementById("saveEntry");
   return {
+    id: saveBtn ? saveBtn.getAttribute("data-existing-id") || "" : "",
     date: document.getElementById("f_date").value,
     start: document.getElementById("f_start").value,
     end: document.getElementById("f_end").value,

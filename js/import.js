@@ -88,7 +88,7 @@ function downloadImportTemplate() {
     [],
     ["Good to know"],
     ["Hours, hours worked and pay are worked out by the app - you don't need those columns (they're ignored if there)."],
-    ["If a date is already logged with different details, you'll be shown both and asked: Replace, Keep both, Keep existing or Stop."],
+    ["If a date is already logged with different details, you'll see both and choose for each day: Replace, Keep both (e.g. a split day) or Keep existing."],
     ["Rows that match what's already logged are skipped, so importing the same file twice won't make duplicates."],
     ["Only the sheet called \"All Data\" is imported (or the first sheet if there isn't one), so the Example sheet won't be."],
     ["A file exported from the app (Export Excel / Export CSV) can be imported straight back."]
@@ -153,7 +153,7 @@ function importWorkbook(wb) {
     if (!plan.clashRows[f.date]) { plan.clashRows[f.date] = []; plan.clashDates.push(f.date); }
     plan.clashRows[f.date].push(f);
   });
-  if (!plan.clashDates.length) { applyImport(plan, "skip", sheetName); return; }
+  if (!plan.clashDates.length) { applyImport(plan, {}, sheetName); return; }
   showImportClashes(plan, existingOn, sheetName);
 }
 
@@ -194,15 +194,16 @@ function entrySummaryHtml(e) {
   return lines.join("<br>") || "(blank)";
 }
 
-// "replace": the file wins for clashing days; "both": add the file's rows as
-// extra entries; "skip": keep what's logged and import only new days.
-function applyImport(plan, choice, sheetName) {
-  var result = state.entries.slice(), added = 0, replaced = 0;
+// What to do with each clashing day: choices[date] is "replace" (the file
+// wins), "both" (add the file's rows as extra entries, e.g. the other half
+// of a split day) or "skip" (keep what's logged). New days are always added.
+function applyImport(plan, choices, sheetName) {
+  var result = state.entries.slice(), added = 0, replaced = 0, kept = 0, both = 0;
   plan.fresh.forEach(function (f) { result.push(Object.assign({ id: uid(), date: f.date }, f.fields)); added++; });
   plan.clashDates.forEach(function (d) {
-    var rows = plan.clashRows[d];
-    if (choice === "both") { rows.forEach(function (f) { result.push(Object.assign({ id: uid(), date: d }, f.fields)); added++; }); return; }
-    if (choice !== "replace") return;
+    var rows = plan.clashRows[d], choice = choices[d] || "skip";
+    if (choice === "both") { rows.forEach(function (f) { result.push(Object.assign({ id: uid(), date: d }, f.fields)); added++; }); both++; return; }
+    if (choice !== "replace") { kept++; return; }
     // Keep the first entry for the day (its id and any columns the file
     // doesn't have), drop any others, then add any extra rows from the file.
     var first = -1;
@@ -218,51 +219,73 @@ function applyImport(plan, choice, sheetName) {
   });
   state.entries = result;
   save();
+  var plural = function (n, w) { return n + " " + w + (n === 1 ? "" : "s"); };
   var bits = [];
-  if (added) bits.push(added + " added");
-  if (replaced) bits.push(replaced + " day" + (replaced === 1 ? "" : "s") + " replaced");
-  if (choice === "skip" && plan.clashDates.length) bits.push(plan.clashDates.length + " day" + (plan.clashDates.length === 1 ? "" : "s") + " kept as they were");
+  if (added) bits.push(plural(added, "entry").replace("entrys", "entries") + " added");
+  if (replaced) bits.push(plural(replaced, "day") + " replaced");
+  if (both) bits.push(plural(both, "day") + " with both kept");
+  if (kept) bits.push(plural(kept, "day") + " kept as they were");
   if (plan.same) bits.push(plan.same + " already up to date");
   toast("Imported from " + sheetName + ": " + (bits.join(", ") || "nothing new") + ".");
   render();
 }
 
-/* ---- "These days are already logged" popup ---- */
+/* ---- "These days are already logged" popup: a choice for each day ---- */
+var CLASH_CHOICES = [["replace", "Replace"], ["both", "Keep both"], ["skip", "Keep existing"]];
 function showImportClashes(plan, existingOn, sheetName) {
-  var n = plan.clashDates.length, shown = plan.clashDates.slice(0, 6);
-  var list = shown.map(function (d) {
-    return '<div class="clash-row"><div class="clash-date">' + escapeHtml(fmtDate(d)) + '</div>' +
+  var n = plan.clashDates.length, choices = {};
+  plan.clashDates.forEach(function (d) { choices[d] = "replace"; });
+  var list = plan.clashDates.map(function (d, i) {
+    return '<div class="clash-row" data-date="' + d + '"><div class="clash-date">' + escapeHtml(fmtDate(d)) + '</div>' +
       '<div class="clash-side"><span class="clash-label">Already logged</span>' + existingOn[d].map(entrySummaryHtml).join('<div class="clash-gap"></div>') + '</div>' +
-      '<div class="clash-side"><span class="clash-label">In the import</span>' + plan.clashRows[d].map(function (f) { return entrySummaryHtml(f.fields); }).join('<div class="clash-gap"></div>') + '</div></div>';
-  }).join("") + (n > shown.length ? '<div class="clash-more">and ' + (n - shown.length) + ' more day' + (n - shown.length === 1 ? "" : "s") + '\u2026</div>' : "");
-  var others = plan.fresh.length + plan.same;
+      '<div class="clash-side"><span class="clash-label">In the import</span>' + plan.clashRows[d].map(function (f) { return entrySummaryHtml(f.fields); }).join('<div class="clash-gap"></div>') + '</div>' +
+      '<div class="clash-pick" role="radiogroup" aria-label="' + escapeHtml(fmtDate(d)) + '">' + CLASH_CHOICES.map(function (c) {
+        return '<label class="clash-opt"><input type="radio" name="clash' + i + '" value="' + c[0] + '" data-date="' + d + '"' + (c[0] === "replace" ? " checked" : "") + '><span>' + c[1] + '</span></label>';
+      }).join("") + '</div></div>';
+  }).join("");
   var box = document.createElement("div");
   box.className = "ts-modal-scrim";
-  box.innerHTML = '<div class="ts-modal" role="dialog" aria-modal="true" aria-labelledby="clashTitle">' +
+  box.innerHTML = '<div class="ts-modal ts-modal-wide" role="dialog" aria-modal="true" aria-labelledby="clashTitle">' +
     '<div class="ts-modal-head"><span class="ts-modal-icon" aria-hidden="true">!</span><div>' +
       '<div class="ts-modal-title" id="clashTitle">' + n + ' day' + (n === 1 ? " is" : "s are") + ' already logged</div>' +
-      '<div class="ts-modal-text">The file has different details for ' + (n === 1 ? "this day" : "these days") + '. Do you want to replace ' + (n === 1 ? "it" : "them") + ' with the file\u2019s version?' +
-        (plan.fresh.length ? ' The other ' + plan.fresh.length + ' new day' + (plan.fresh.length === 1 ? "" : "s") + ' will be added either way.' : '') + '</div></div></div>' +
+      '<div class="ts-modal-text">The file has different details for ' + (n === 1 ? "this day" : "these days") + '. Choose what to do with ' + (n === 1 ? "it" : "each one") + ': <b>Replace</b> with the file\u2019s version, <b>Keep both</b> (e.g. the other half of a split day) or <b>Keep existing</b>.' +
+        (plan.fresh.length ? ' ' + (plan.fresh.length === 1 ? "The 1 new day" : "The " + plan.fresh.length + " new days") + ' in the file will be added either way.' : '') + '</div></div></div>' +
+    (n > 1 ? '<div class="clash-all"><span>Set all:</span>' + CLASH_CHOICES.map(function (c) { return '<button type="button" class="btn btn-sm" data-clash-all="' + c[0] + '">' + c[1] + '</button>'; }).join("") + '</div>' : '') +
     '<div class="clash-list">' + list + '</div>' +
-    '<div class="ts-modal-btns">' +
-      '<button class="btn" data-clash="both" title="Add the file\u2019s rows as extra entries on those days">Keep both</button>' +
-      '<button class="btn" data-clash="skip" title="Leave those days as they are; import only new days">Keep existing</button>' +
+    '<div class="ts-modal-btns"><span class="clash-count" id="clashCount"></span>' +
       '<button class="btn" data-clash="stop">Stop</button>' +
-      '<button class="btn btn-primary" data-clash="replace">Replace</button>' +
+      '<button class="btn btn-primary" data-clash="import">Import</button>' +
     '</div></div>';
-  function close(choice) {
+  function count() {
+    var t = { replace: 0, both: 0, skip: 0 };
+    plan.clashDates.forEach(function (d) { t[choices[d]]++; });
+    box.querySelector("#clashCount").textContent = [t.replace ? t.replace + " replace" : "", t.both ? t.both + " keep both" : "", t.skip ? t.skip + " keep existing" : ""].filter(Boolean).join(" \u00B7 ");
+  }
+  function close(go) {
     document.removeEventListener("keydown", onKey);
     box.remove();
-    if (choice === "stop") { toast("Import stopped \u2014 nothing was changed."); return; }
-    applyImport(plan, choice, sheetName);
+    if (!go) { toast("Import stopped \u2014 nothing was changed."); return; }
+    applyImport(plan, choices, sheetName);
   }
-  function onKey(ev) { if (ev.key === "Escape") close("stop"); }
+  function onKey(ev) { if (ev.key === "Escape") close(false); }
+  box.addEventListener("change", function (ev) {
+    var r = ev.target;
+    if (r.matches('input[type="radio"][data-date]')) { choices[r.getAttribute("data-date")] = r.value; count(); }
+  });
   box.addEventListener("click", function (ev) {
+    var all = ev.target.closest("[data-clash-all]");
+    if (all) {
+      var v = all.getAttribute("data-clash-all");
+      plan.clashDates.forEach(function (d) { choices[d] = v; });
+      box.querySelectorAll('input[type="radio"][data-date]').forEach(function (r) { r.checked = r.value === v; });
+      count(); return;
+    }
     var b = ev.target.closest("[data-clash]");
-    if (b) close(b.getAttribute("data-clash"));
-    else if (ev.target === box) close("stop");
+    if (b) close(b.getAttribute("data-clash") === "import");
+    else if (ev.target === box) close(false);
   });
   document.addEventListener("keydown", onKey);
   document.body.appendChild(box);
-  box.querySelector('[data-clash="replace"]').focus();
+  count();
+  box.querySelector('[data-clash="import"]').focus();
 }
