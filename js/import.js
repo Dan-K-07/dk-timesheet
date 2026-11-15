@@ -56,21 +56,22 @@ function matchType(v) {
 
 /* ============ Import template ============ */
 // The columns the importer reads (any order; other columns are ignored).
-var IMPORT_COLUMNS = ["Date", "Start", "End", "Break", "Rate", "Type", "Notes", "TOIL Banked"];
+// (Import also reads a "TOIL Banked" column, as in the app's own exports, but
+// the template leaves it out.)
+var IMPORT_COLUMNS = ["Date", "Start", "End", "Break", "Rate", "Type", "Notes"];
 function downloadImportTemplate() {
   var wb = XLSX.utils.book_new();
   var data = XLSX.utils.aoa_to_sheet([IMPORT_COLUMNS]);
-  data["!cols"] = [{ wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 7 }, { wch: 7 }, { wch: 11 }, { wch: 30 }, { wch: 12 }];
+  data["!cols"] = [{ wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 7 }, { wch: 7 }, { wch: 11 }, { wch: 30 }];
   XLSX.utils.book_append_sheet(wb, data, "All Data");
   var example = XLSX.utils.aoa_to_sheet([
     IMPORT_COLUMNS,
-    ["06/01/2025", "08:00", "17:00", 0.5, 15, "Warehouse", "Normal day", ""],
-    ["07/01/2025", "08:00", "19:00", 0.5, 15, "On Site", "Show build - 1 hr of overtime kept as TOIL", 1],
-    ["08/01/2025", "", "", "", "", "Holiday", "Full day off - no times needed", ""],
-    ["09/01/2025", "09:00", "13:00", 0, 15, "Holiday", "Half day", ""],
-    ["10/01/2025", "", "", "", "", "TOIL", "Day off using TOIL", ""],
-    ["13/01/2025", "", "", "", "", "Sick", "", ""],
-    ["14/01/2025", "", "", "", "", "Off", "", ""]
+    ["06/01/2025", "08:00", "17:00", 0.5, 15, "Warehouse", "Normal day"],
+    ["07/01/2025", "08:00", "19:00", 0.5, 15, "On Site", "Show build"],
+    ["08/01/2025", "", "", "", "", "Holiday", "Full day off - no times needed"],
+    ["09/01/2025", "09:00", "13:00", 0, 15, "Holiday", "Half day"],
+    ["13/01/2025", "", "", "", "", "Sick", ""],
+    ["14/01/2025", "", "", "", "", "Off", ""]
   ]);
   example["!cols"] = data["!cols"];
   XLSX.utils.book_append_sheet(wb, example, "Example");
@@ -82,13 +83,13 @@ function downloadImportTemplate() {
     ["End", "Finish time. Past midnight is fine (e.g. 22:00 to 02:00).", "17:00"],
     ["Break", "Unpaid break in hours (0.5 = 30 minutes).", "0.5"],
     ["Rate", "Hourly rate in pounds, numbers only.", "15"],
-    ["Type", "One of: " + TYPES.join(", ") + ".", "Warehouse"],
+    ["Type", "One of: " + TYPES.filter(function (t) { return t !== "TOIL"; }).join(", ") + ".", "Warehouse"],
     ["Notes", "Anything you like.", "Show build"],
-    ["TOIL Banked", "Optional. Hours of that day's overtime kept as TOIL instead of paid.", "1"],
     [],
     ["Good to know"],
     ["Hours, hours worked and pay are worked out by the app - you don't need those columns (they're ignored if there)."],
-    ["Importing a date that's already in the app replaces that day with the row from the file. Other days are left alone."],
+    ["If a date is already logged with different details, you'll be shown both and asked: Replace, Keep both, Keep existing or Stop."],
+    ["Rows that match what's already logged are skipped, so importing the same file twice won't make duplicates."],
     ["Only the sheet called \"All Data\" is imported (or the first sheet if there isn't one), so the Example sheet won't be."],
     ["A file exported from the app (Export Excel / Export CSV) can be imported straight back."]
   ]);
