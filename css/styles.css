@@ -407,6 +407,9 @@ select, .field-input {
 .clash-row:last-child { border-bottom: none; }
 .clash-date { font-family: var(--font-mono); font-weight: 600; }
 .clash-label { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-dim); margin-bottom: 2px; }
+.clash-side { line-height: 1.5; }
+.clash-about { color: var(--ink-dim); }
+.clash-gap { height: 6px; }
 .clash-more { padding: 8px 12px; font-size: 12.5px; color: var(--ink-dim); background: var(--panel-2); }
 .ts-modal-btns { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 @media (max-width: 520px) {

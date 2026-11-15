@@ -176,12 +176,21 @@ function sameEntry(e, f) {
     return a === b;
   });
 }
-function entrySummary(e) {
-  var bits = [];
-  if (e.start || e.end) bits.push((e.start || "?") + "\u2013" + (e.end || "?"));
-  if (e.type) bits.push(e.type);
-  if (e.notes) bits.push("\u201c" + (e.notes.length > 28 ? e.notes.slice(0, 27) + "\u2026" : e.notes) + "\u201d");
-  return bits.join(" \u00B7 ") || "(blank)";
+// One entry in the clash pop-up, e.g.
+//   10:00 - 16:00
+//   0.5 hr break
+//   Total 5.5 hrs
+//   Warehouse · "Show build"
+function entrySummaryHtml(e) {
+  var lines = [], brk = parseFloat(e.breakHrs), hw = computeHoursWorked(e);
+  if (e.start || e.end) lines.push('<b>' + escapeHtml((e.start || "?") + " \u2013 " + (e.end || "?")) + '</b>');
+  if (e.start && e.end) lines.push(escapeHtml((isNaN(brk) || !brk ? "No" : fmtHours(brk) + " hr") + " break"));
+  if (hw !== null) lines.push('<b>Total ' + escapeHtml(fmtHours(hw)) + ' hr' + (hw === 1 ? "" : "s") + '</b>');
+  var about = [];
+  if (e.type) about.push(e.type);
+  if (e.notes) about.push("\u201c" + (e.notes.length > 28 ? e.notes.slice(0, 27) + "\u2026" : e.notes) + "\u201d");
+  if (about.length) lines.push('<span class="clash-about">' + escapeHtml(about.join(" \u00B7 ")) + '</span>');
+  return lines.join("<br>") || "(blank)";
 }
 
 // "replace": the file wins for clashing days; "both": add the file's rows as
@@ -222,8 +231,8 @@ function showImportClashes(plan, existingOn, sheetName) {
   var n = plan.clashDates.length, shown = plan.clashDates.slice(0, 6);
   var list = shown.map(function (d) {
     return '<div class="clash-row"><div class="clash-date">' + escapeHtml(fmtDate(d)) + '</div>' +
-      '<div class="clash-side"><span class="clash-label">In the app</span>' + existingOn[d].map(function (e) { return escapeHtml(entrySummary(e)); }).join("<br>") + '</div>' +
-      '<div class="clash-side"><span class="clash-label">In the file</span>' + plan.clashRows[d].map(function (f) { return escapeHtml(entrySummary(f.fields)); }).join("<br>") + '</div></div>';
+      '<div class="clash-side"><span class="clash-label">Already logged</span>' + existingOn[d].map(entrySummaryHtml).join('<div class="clash-gap"></div>') + '</div>' +
+      '<div class="clash-side"><span class="clash-label">In the import</span>' + plan.clashRows[d].map(function (f) { return entrySummaryHtml(f.fields); }).join('<div class="clash-gap"></div>') + '</div></div>';
   }).join("") + (n > shown.length ? '<div class="clash-more">and ' + (n - shown.length) + ' more day' + (n - shown.length === 1 ? "" : "s") + '\u2026</div>' : "");
   var others = plan.fresh.length + plan.same;
   var box = document.createElement("div");
