@@ -49,6 +49,8 @@ function attachEvents() {
   bindIf("emptyAdd", "click", function () { state.tab = "log"; state.adding = true; render(); scrollToForm(); });
   bindIf("emptyImport", "click", function () { document.getElementById("fileInput").click(); });
   bindIf("importBtn", "click", function () { document.getElementById("fileInput").click(); });
+  bindIf("templateBtn", "click", downloadImportTemplate);
+  bindIf("emptyTemplate", "click", downloadImportTemplate);
   bindIf("exportCsvBtn", "click", exportCSV);
   bindIf("exportXlsxBtn", "click", exportXLSX);
   bindIf("sortBtn", "click", function () { state.sortDir = state.sortDir === "asc" ? "desc" : "asc"; render(); });

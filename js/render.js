@@ -428,6 +428,7 @@ function renderEmpty() {
     'Import your existing timesheet, or start logging days on the All Data tab.' +
     '<div class="btn-row">' +
       '<button class="btn btn-primary" id="emptyImport">Import spreadsheet</button>' +
+      '<button class="btn" id="emptyTemplate">Download import template</button>' +
       '<button class="btn" id="emptyAdd">Add first entry</button>' +
     '</div>' +
   '</div>';
@@ -448,6 +449,7 @@ function renderLog() {
       '<div class="btn-row">' +
         '<button class="btn btn-primary" id="addBtn">+ Add entry</button>' +
         '<button class="btn" id="importBtn">Import</button>' +
+        '<button class="btn" id="templateBtn" title="A blank spreadsheet in the format Import reads">Import template</button>' +
         '<button class="btn" id="exportCsvBtn">Export CSV</button>' +
         '<button class="btn" id="exportXlsxBtn">Export Excel</button>' +
       '</div>' +
