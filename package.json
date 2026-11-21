@@ -1,0 +1,11 @@
+{
+  "name": "dk-timesheet",
+  "private": true,
+  "description": "DK Timesheet and DK Jobs (static sites, no dependencies)",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "build:timesheets": "node scripts/build.mjs timesheets",
+    "build:jobs": "node scripts/build.mjs jobs"
+  }
+}

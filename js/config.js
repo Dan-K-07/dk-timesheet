@@ -1,7 +1,7 @@
 "use strict";
 
 /* ============ Constants ============ */
-var APP_VERSION = "2.11.2"; // bump this whenever you change the app
+var APP_VERSION = "2.11.3"; // bump this whenever you change the app
 var TYPES = ["Warehouse", "On Site", "Holiday", "TOIL", "Sick", "Off"];
 var TYPE_CLASS = { "Warehouse": "tag-Warehouse", "On Site": "tag-OnSite", "Holiday": "tag-Holiday", "TOIL": "tag-TOIL", "Sick": "tag-Sick", "Off": "tag-Off" };
 var STORAGE_KEY = "dk_timesheet_entries_v1";
@@ -21,6 +21,14 @@ var MONTH_NAMES = ["January","February","March","April","May","June","July","Aug
 // rows where user_id = auth.uid().
 var SUPABASE_URL = "https://axiqpqjquywvzymmzwgr.supabase.co";
 var SUPABASE_ANON_KEY = "sb_publishable_gO1jSR_OETTKmwCz-hEb3w_JUYS1tik";
+
+/* ============ Link to DK Jobs ============ */
+// On Coolify the jobs app is its own site (JOBS_URL in js/site-config.js);
+// on the combined Netlify site it's the jobs/ folder.
+function jobsAppUrl() {
+  var u = window.DK_SITE && window.DK_SITE.jobsUrl;
+  return u ? String(u).replace(/\/+$/, "") + "/" : "jobs/";
+}
 
 /* ============ Downloads capability (falls back to a plain link) ============ */
 var downloadsCap = null;
