@@ -114,7 +114,7 @@ function renderSidebar() {
       '<div class="side-brand"><span class="brand-badge">DK</span><span class="brand-text">DK Timesheet<small>v' + APP_VERSION + '</small></span></div>' +
       '<nav class="side-nav">' + links + '</nav>' +
       '<div class="side-foot">' +
-        '<a class="switch-app" href="jobs/" title="Go to DK Jobs">' + navIcon("swap") + '<span>Open Jobs</span></a>' +
+        '<a class="switch-app" href="' + escapeHtml(jobsAppUrl()) + '" title="Go to DK Jobs">' + navIcon("swap") + '<span>Open Jobs</span></a>' +
         '<div class="foot-row">' +
           '<span class="sync-pill" id="syncStatusPill" title="' + escapeHtml(state.user ? "Signed in as " + state.user.email : "Not connected") + '"><span class="sync-dot ' + state.syncStatus + '"></span><span class="sync-label">' + syncStatusLabel() + '</span></span>' +
           '<button class="icon-only" id="themeToggle" title="' + (isDarkMode() ? "Light mode" : "Dark mode") + '">' + navIcon(isDarkMode() ? "sun" : "moon") + '</button>' +
@@ -126,7 +126,7 @@ function renderSidebar() {
 function renderMobileBar() {
   return '<div class="mobile-bar"><button class="icon-only" id="navOpenBtn" aria-label="Menu">' + navIcon("menu") + '</button>' +
     '<span class="brand-badge sm">DK</span><span class="mobile-title">' + currentTab().label + '</span>' +
-    '<a class="icon-only" href="jobs/" title="Open Jobs">' + navIcon("swap") + '</a></div>';
+    '<a class="icon-only" href="' + escapeHtml(jobsAppUrl()) + '" title="Open Jobs">' + navIcon("swap") + '</a></div>';
 }
 
 function docIcon(mime, filename) {

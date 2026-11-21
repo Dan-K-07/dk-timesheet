@@ -1,0 +1,5 @@
+# Netlify standby: serve the combined site (timesheet at /, jobs at /jobs/)
+# straight from the repo, with no build. Coolify uses the npm build scripts instead.
+[build]
+  publish = "."
+  command = ""

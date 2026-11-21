@@ -293,7 +293,7 @@ function renderGate() {
       (state.authError ? '<div class="gate-error">' + escapeHtml(state.authError) + '</div>' : "") +
       '<button type="submit" class="btn btn-primary auth-submit"' + busy + '>' + (state.authBusy ? "Logging in…" : "Log in") + '</button>' +
     '</form>' +
-    '<a class="link-btn" href="../">Forgot password? Reset it from the timesheet</a>';
+    '<a class="link-btn" href="' + attr(timesheetAppUrl()) + '">Forgot password? Reset it from the timesheet</a>';
   return '<div class="gate-wrap"><div class="card gate-card"><div class="gate-mark">DK <span>Jobs</span></div>' + body + '</div></div>';
 }
 
@@ -312,7 +312,7 @@ function renderSidebar() {
       '<a class="side-brand" href="#/home"><span class="brand-badge">DK</span><span class="brand-text">DK Jobs<small>v' + JOBS_VERSION + '</small></span></a>' +
       '<nav class="side-nav">' + links + '</nav>' +
       '<div class="side-foot">' +
-        '<a class="switch-app" href="../" title="Go to DK Timesheet">' + icon("swap") + '<span>Open Timesheet</span></a>' +
+        '<a class="switch-app" href="' + attr(timesheetAppUrl()) + '" title="Go to DK Timesheet">' + icon("swap") + '<span>Open Timesheet</span></a>' +
         '<div class="foot-row">' +
           '<span class="sync-pill" id="syncStatusPill" title="' + attr(state.user ? "Signed in as " + state.user.email : "Not connected") + '"><span class="sync-dot ' + state.syncStatus + '"></span><span class="sync-label">' + syncStatusLabel() + '</span></span>' +
           '<button class="icon-only" data-action="theme" title="' + (isDarkMode() ? "Light mode" : "Dark mode") + '">' + icon(isDarkMode() ? "sun" : "moon") + '</button>' +
@@ -324,7 +324,7 @@ function renderSidebar() {
 function renderMobileBar() {
   return '<div class="mobile-bar"><button class="icon-only" data-action="nav-open" aria-label="Menu">' + icon("menu") + '</button>' +
     '<span class="brand-badge sm">DK</span><span class="mobile-title">' + escapeHtml((TABS.filter(function (t) { return t.key === (state.route.tab === "doc" ? "invoices" : state.route.tab); })[0] || TABS[0]).label) + '</span>' +
-    '<a class="icon-only" href="../" title="Open Timesheet">' + icon("swap") + '</a></div>';
+    '<a class="icon-only" href="' + attr(timesheetAppUrl()) + '" title="Open Timesheet">' + icon("swap") + '</a></div>';
 }
 function pageHeader(title, sub, actionsHtml) {
   return '<div class="page-header"><div><h1 class="page-h1">' + escapeHtml(title) + '</h1>' + (sub ? '<div class="page-sub">' + escapeHtml(sub) + '</div>' : "") + '</div>' +

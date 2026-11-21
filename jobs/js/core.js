@@ -7,7 +7,7 @@
    to the other.
    ===================================================================== */
 
-var JOBS_VERSION = "2.1.0"; // bump this whenever you change the Jobs app
+var JOBS_VERSION = "2.1.1"; // bump this whenever you change the Jobs app
 var SUPABASE_URL = "https://axiqpqjquywvzymmzwgr.supabase.co";
 var SUPABASE_ANON_KEY = "sb_publishable_gO1jSR_OETTKmwCz-hEb3w_JUYS1tik";
 var AUTH_STORAGE_KEY = "dk_timesheet_auth_v1"; // shared with the timesheet
@@ -17,6 +17,13 @@ var UNSYNCED_KEY = "dk_jobs_unsynced_v1";
 var CLIENT_ID_KEY = "dk_timesheet_client_id_v1";
 var SYNC_TABLE = "jobs_sync";
 var RECEIPT_BUCKET = "receipts";
+
+// On Coolify the timesheet is its own site (TIMESHEETS_URL in js/site-config.js);
+// on the combined Netlify site it's one folder up.
+function timesheetAppUrl() {
+  var u = window.DK_SITE && window.DK_SITE.timesheetsUrl;
+  return u ? String(u).replace(/\/+$/, "") + "/" : "../";
+}
 
 var JOB_STATUSES = ["Potential", "Pencilled", "Confirmed", "Awaiting Payment", "Completed", "Cancelled"];
 
