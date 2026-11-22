@@ -230,6 +230,6 @@ function renderSettings() {
   // Backup across the bottom.
   return '<div class="settings-grid">' +
       '<div class="settings-col">' + business + quotes + tax + mileage + '</div>' +
-      '<div class="settings-col">' + bank + categories + '</div>' +
+      '<div class="settings-col">' + bank + gcalSettingsCard() + categories + '</div>' +
     '</div>' + backup;
 }
