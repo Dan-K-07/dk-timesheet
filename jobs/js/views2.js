@@ -186,13 +186,15 @@ function renderStatementPage(id) {
 }
 function renderStatement(c) {
   var range = state.stmtRange[c.id] || {}, st = clientStatement(c.id, range.from, range.to), ranged = !!(range.from || range.to);
+  var unpaid = unpaidInvoices(c.id);
   var dates = '<div class="stmt-dates">' +
       field("From", '<input type="date" class="field-input" id="stmtFrom" data-id="' + attr(c.id) + '" value="' + attr(range.from || "") + '">') +
       field("To", '<input type="date" class="field-input" id="stmtTo" data-id="' + attr(c.id) + '" value="' + attr(range.to || "") + '">') +
       (ranged ? btn("Clear dates", "stmt-clear", { id: c.id, cls: "btn-sm" }) : "") + '</div>';
   var buttons = '<div class="btn-row">' +
       btn(ranged ? "Download PDF (these dates)" : "Download PDF", "stmt-pdf", { id: c.id, cls: "btn-primary", disabled: !st.any }) +
-      (ranged ? btn("Download full history", "stmt-pdf-all", { id: c.id, disabled: !st.any }) : "") + '</div>';
+      (ranged ? btn("Download full history", "stmt-pdf-all", { id: c.id, disabled: !st.any }) : "") +
+      (unpaid.length ? btn("Download " + unpaid.length + " unpaid invoice" + (unpaid.length === 1 ? "" : "s"), "stmt-unpaid", { id: c.id }) : "") + '</div>';
   var cell = function (n) { return n ? money(n) : ""; };
   var body = (st.from ? '<tr class="stmt-bf"><td class="date-cell">' + fmtDate(st.from) + '</td><td></td><td>Balance brought forward</td><td></td><td></td><td></td><td class="num">' + money(st.opening) + '</td></tr>' : "") +
     st.rows.map(function (r) {

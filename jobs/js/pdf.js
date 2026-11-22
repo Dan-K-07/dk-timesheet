@@ -244,101 +244,101 @@ function statementFileName(c, st) {
   return ("Statement - " + pdfText(c.name || "Client").trim() + " - " + when).replace(/[\/\\:*?"<>|]+/g, "-").replace(/\s+/g, " ").slice(0, 120) + ".pdf";
 }
 function buildStatementPdf(c, st) {
-  var s = state.data.settings, k = pdfKit(), pdf = k.pdf, M = k.M, R = k.R, CW = k.CW, TOP2 = k.TOP2, BOTTOM = k.BOTTOM;
-  var font = k.font, lines = k.lines, heading = k.heading, y;
+  var s = state.data.settings, k = pdfKit(), pdf = k.pdf, M = k.M, R = k.R, TOP2 = k.TOP2, BOTTOM = k.BOTTOM;
+  var font = k.font, lines = k.lines, y = M + 4;
   function newPage() { pdf.addPage(); y = TOP2; return y; }
-  var balanceLabel = st.to && st.to < todayIso() ? "Balance at " + fmtDate(st.to) : "Balance Outstanding";
+  function hr(yy, colour, w) { pdf.setDrawColor.apply(pdf, colour || PDF_LINE); pdf.setLineWidth(w || 0.25); pdf.line(M, yy, R, yy); }
+  var balanceLabel = st.to && st.to < todayIso() ? "Balance at " + fmtDate(st.to) : "Balance outstanding";
 
-  /* ---- Top: same letterhead as invoices ---- */
-  var meta = [["Statement Date", fmtDate(todayIso())]];
-  if (c.supplierRef) meta.push(["Supplier Ref", c.supplierRef]);
-  y = pdfLetterhead(k, "STATEMENT", statementPeriod(st), meta);
+  /* ---- Top: the client (left), your details (middle), your logo (right) ---- */
+  var colL = M, colM = M + 66, colW = 62, ly = y, my = y;
+  font(10.5, "bold"); lines(c.name || "Client", colW).forEach(function (l) { pdf.text(l, colL, ly); ly += 4.8; });
+  font(9, "normal", PDF_DIM); if (c.email) { pdf.text(lines(c.email, colW)[0], colL, ly); ly += 4.4; }
 
-  /* ---- Statement For (left) and Account Summary (right) ---- */
-  var gap = 6, bw = (CW - gap) / 2, pad = 5, inner = bw - 2 * pad;
-  var forRows = [["Statement For", 8.5, "bold", PDF_INK, 7], [c.name || "", 12, "bold", PDF_INK, 4.5], [c.email, 8.5, "bold", PDF_DIM, 6]]
-    .concat(String(c.address || "").split("\n").map(function (a) { return [a.trim(), 9, "normal", PDF_INK, 4.4]; }))
-    .concat(clientContactName(c) ? [["Attn: " + clientContactName(c), 9, "normal", PDF_DIM, 4.4]] : []);
-  var out = [];
-  forRows.forEach(function (r) {
-    if (!r[0]) return;
-    font(r[1], r[2]);
-    lines(r[0], inner).forEach(function (l, i, all) { out.push([l, r[1], r[2], r[3], i === all.length - 1 ? r[4] : r[1] * 0.42]); });
-  });
-  var sums = (st.from ? [["Brought forward", st.opening]] : []).concat([["Invoiced", st.charged], ["Paid", st.paid]]);
-  var leftH = out.reduce(function (h, r) { return h + r[4]; }, 0), rightH = 7 + sums.length * 6 + 12;
-  var bh = Math.max(leftH, rightH) + 2 * pad + 1;
-  k.rbox(M, y, bw, bh);
-  var yy = y + pad + 3.5;
-  out.forEach(function (r) { font(r[1], r[2], r[3]); pdf.text(r[0], M + pad, yy); yy += r[4]; });
-  var sx = M + bw + gap;
-  k.rbox(sx, y, bw, bh, true);
-  yy = y + pad + 3.5;
-  heading("Account Summary", sx + pad, yy); yy += 7;
-  sums.forEach(function (r) {
-    font(9.5, "bold", PDF_DIM); pdf.text(r[0], sx + pad, yy);
-    font(9.5, "bold"); pdf.text(pdfMoney(r[1]), sx + bw - pad, yy, { align: "right" }); yy += 6;
-  });
-  pdf.setDrawColor.apply(pdf, PDF_INK); pdf.setLineWidth(0.4); pdf.line(sx + pad, yy - 2.5, sx + bw - pad, yy - 2.5);
-  yy += 3.5;
-  font(9.5, "bold"); pdf.text(pdfText(balanceLabel), sx + pad, yy);
-  font(13, "bold", PDF_ACCENT); pdf.text(pdfMoney(st.closing), sx + bw - pad, yy, { align: "right" });
-  y += bh + 9;
+  font(10.5, "bold"); lines(s.businessName || s.yourName || "Your business name", colW).forEach(function (l) { pdf.text(l, colM, my); my += 4.8; });
+  font(9, "normal", PDF_DIM);
+  var block = function (list) {
+    list = list.map(function (x) { return (x || "").trim(); }).filter(Boolean);
+    if (!list.length) return;
+    list.forEach(function (l) { lines(l, colW).forEach(function (w) { pdf.text(w, colM, my); my += 4.4; }); });
+    my += 1.6;
+  };
+  block([s.yourName && s.businessName ? s.yourName : ""].concat(String(s.address || "").split("\n")));
+  block([s.email, s.phone, s.website]);
+  block([s.vatRegistered && s.vatNumber ? "VAT number: " + s.vatNumber : ""]);
 
-  /* ---- Transactions: one rounded box per page, header row shaded ---- */
-  var cols = [["Date", M + 4, "left"], ["Reference", M + 28, "left"], ["Detail", M + 57, "left"], ["Due", M + 76, "left"],
-    ["Charge", R - 56, "right"], ["Paid", R - 30, "right"], ["Balance", R - 4, "right"]];
-  heading("Transactions", M, y); y += 4;
-  var segTop;
+  var logoH = 0;
+  if (s.logo) {
+    try {
+      var p = pdf.getImageProperties(s.logo), lw = 46, lh = lw * p.height / p.width;
+      if (lh > 18) { lh = 18; lw = lh * p.width / p.height; }
+      pdf.addImage(s.logo, "PNG", R - lw, y - 3.5, lw, lh); logoH = lh;
+    } catch (e) {}
+  }
+  y = Math.max(ly, my, y + logoH) + 6;
+
+  /* ---- Title, who it's to, and the dates it covers ---- */
+  font(22, "normal"); pdf.text("Statement of Account", M, y + 4); y += 15;
+  font(7, "normal", PDF_DIM); pdf.text("TO", M, y, { charSpace: 0.3 }); y += 4.8;
+  font(10, "bold"); pdf.text(lines(c.name || "", 120)[0] || "", M, y); y += 5;
+  var addr = String(c.address || "").split("\n").map(function (x) { return x.trim(); }).filter(Boolean).join(", ");
+  font(10, "normal"); if (addr) { lines(addr, 120).forEach(function (l) { pdf.text(l, M, y); y += 5; }); }
+  font(9.5, "normal", PDF_DIM);
+  if (clientContactName(c)) { pdf.text(pdfText("Attn: " + clientContactName(c)), M, y); y += 5; }
+  if (c.email) { pdf.text(pdfText(c.email), M, y); y += 5; }
+  y += 4;
+  var period = [statementPeriod(st), "Statement date " + fmtDate(todayIso()), c.supplierRef ? "Supplier ref " + c.supplierRef : ""].filter(Boolean).join("  ·  ");
+  font(9, "normal", PDF_DIM); pdf.text(pdfText(period), M, y); y += 8;
+
+  /* ---- Transactions: plain table, a hairline under each row ---- */
+  var cols = [["Date", M, "left"], ["Reference", M + 30, "left"], ["Detail", M + 57, "left"], ["Due", M + 79, "left"],
+    ["Charge", R - 50, "right"], ["Credit / paid", R - 24, "right"], ["Balance", R, "right"]];
   function tableHead() {
-    segTop = y;
-    pdf.setFillColor.apply(pdf, PDF_SOFT);
-    pdf.roundedRect(M, y, CW, 10, 3, 3, "F"); pdf.rect(M, y + 5, CW, 5, "F");
     font(8.5, "bold", PDF_DIM);
-    cols.forEach(function (c2) { pdf.text(c2[0], c2[1], y + 6.5, { align: c2[2] }); });
-    y += 10;
+    cols.forEach(function (c2) { pdf.text(c2[0], c2[1], y, { align: c2[2] }); });
+    y += 3; hr(y, [200, 204, 216], 0.3);
   }
-  function closeTable() { pdf.setDrawColor.apply(pdf, PDF_LINE); pdf.setLineWidth(0.3); pdf.roundedRect(M, segTop, CW, y - segTop, 3, 3, "S"); }
-  var rows = (st.from ? [{ bf: true }] : []).concat(st.rows);
   tableHead();
-  if (!rows.length) {
-    font(9.5, "normal", PDF_DIM); pdf.text("No transactions in these dates.", M + 4, y + 6.8); y += 11;
-  }
-  rows.forEach(function (r, i) {
-    var rh = 9;
-    if (y + rh > BOTTOM) { closeTable(); newPage(); tableHead(); }
-    else if (i > 0) { pdf.setDrawColor.apply(pdf, PDF_LINE); pdf.setLineWidth(0.25); pdf.line(M, y, R, y); }
-    var ty = y + 5.9;
+  var rows = (st.from ? [{ bf: true }] : []).concat(st.rows), rh = 8.4;
+  if (!rows.length) { font(9, "normal", PDF_DIM); pdf.text("No transactions in these dates.", M, y + 5.6); y += rh; hr(y); }
+  rows.forEach(function (r) {
+    if (y + rh > BOTTOM) { newPage(); tableHead(); }
+    var ty = y + 5.6;
     if (r.bf) {
-      font(9, "italic", PDF_DIM);
-      pdf.text(pdfText(fmtDate(st.from)), cols[0][1], ty); pdf.text("Balance brought forward", cols[2][1], ty);
-      font(9, "bold"); pdf.text(pdfMoney(st.opening), cols[6][1], ty, { align: "right" });
+      font(9, "normal", PDF_DIM); pdf.text(pdfText(fmtDate(st.from)), cols[0][1], ty); pdf.text("Balance brought forward", cols[2][1], ty);
+      font(9, "normal"); pdf.text(pdfMoney(st.opening), cols[6][1], ty, { align: "right" });
     } else {
-      var pay = r.detail === "Payment";
-      font(9, "normal"); pdf.text(pdfText(fmtDate(r.date)), cols[0][1], ty);
-      font(9, "bold"); pdf.text(lines(r.ref, 28)[0] || "", cols[1][1], ty);
-      font(9, "normal", pay ? PDF_DIM : PDF_INK); pdf.text(r.detail, cols[2][1], ty);
-      font(9, "normal", PDF_DIM); if (r.due) pdf.text(pdfText(fmtDate(r.due)), cols[3][1], ty);
-      font(9, "bold"); if (r.charge) pdf.text(pdfMoney(r.charge), cols[4][1], ty, { align: "right" });
+      font(9, "normal", PDF_DIM);
+      pdf.text(pdfText(fmtDate(r.date)), cols[0][1], ty);
+      pdf.text(lines(r.ref, 27)[0] || "", cols[1][1], ty);
+      pdf.text(r.detail, cols[2][1], ty);
+      if (r.due) pdf.text(pdfText(fmtDate(r.due)), cols[3][1], ty);
+      font(9, "normal");
+      if (r.charge) pdf.text(pdfMoney(r.charge), cols[4][1], ty, { align: "right" });
       if (r.paid) pdf.text(pdfMoney(r.paid), cols[5][1], ty, { align: "right" });
       pdf.text(pdfMoney(r.balance), cols[6][1], ty, { align: "right" });
     }
-    y += rh;
+    y += rh; hr(y);
   });
-  closeTable();
 
-  /* ---- Balance, like an invoice's Total Payable ---- */
-  if (y + 24 > BOTTOM) newPage();
-  y += 8;
-  var tl = R - 82;
-  pdf.setDrawColor.apply(pdf, PDF_INK); pdf.setLineWidth(0.5); pdf.line(tl, y, R, y);
-  y += 10;
-  font(9.5, "bold"); pdf.text(pdfText(balanceLabel), tl, y - 1);
-  font(22, "bold", PDF_ACCENT); pdf.text(pdfMoney(st.closing), R, y + 2, { align: "right" });
+  /* ---- Balance under the table ---- */
+  if (y + 14 > BOTTOM) newPage();
+  y += 7;
+  font(11, "bold"); pdf.text(pdfText(balanceLabel), cols[4][1] + 3, y, { align: "right" });
+  pdf.text(pdfMoney(st.closing), R, y, { align: "right" });
   y += 12;
 
-  /* ---- Payment details, so they can pay what's owed ---- */
-  if (st.closing > 0 && (s.accountNumber || s.sortCode)) y = pdfPaymentBox(k, y, c.supplierRef || "", newPage);
+  /* ---- How to pay, if anything's owed ---- */
+  if (st.closing > 0 && (s.accountNumber || s.sortCode)) {
+    var pay = [["Bank", s.bankName], ["Account name", s.accountName], ["Account number", s.accountNumber], ["Sort code", s.sortCode], ["Reference", c.supplierRef]]
+      .filter(function (x) { return x[1]; });
+    if (y + 8 + pay.length * 4.8 > BOTTOM) newPage();
+    font(7, "normal", PDF_DIM); pdf.text("PAYMENT DETAILS", M, y, { charSpace: 0.3 }); y += 5;
+    pay.forEach(function (x) {
+      font(9, "normal", PDF_DIM); pdf.text(pdfText(x[0]), M, y);
+      font(9, "normal"); pdf.text(pdfText(x[1]), M + 32, y); y += 4.8;
+    });
+  }
 
   pdfFinish(k, statementFileName(c, st).replace(/\.pdf$/, ""));
   return pdf;
@@ -364,6 +364,32 @@ function downloadStatementPdf(c, range) {
   var st = clientStatement(c.id, range.from, range.to);
   savePdfFile(buildStatementPdf(c, st), statementFileName(c, st));
   toast("Statement saved to your Downloads.");
+}
+// Every unpaid (sent, not yet paid) invoice for a client: one PDF on its
+// own, or several in a zip.
+function unpaidInvoices(clientId) {
+  return liveInvoices().filter(function (i) { return i.clientId === clientId && i.status === "sent"; })
+    .sort(function (a, b) { return (a.date || "") < (b.date || "") ? -1 : 1; });
+}
+async function downloadUnpaidInvoices(c) {
+  var list = unpaidInvoices(c.id);
+  if (!list.length) { toast("No unpaid invoices for this client."); return; }
+  if (!pdfReady()) { toast("Couldn't load the PDF maker - check your connection and try again."); return; }
+  if (list.length === 1) { savePdfFile(buildDocPdf(list[0]), docFileName(list[0])); toast("Invoice saved to your Downloads."); return; }
+  if (!window.JSZip) { toast("Couldn't load the zip maker."); return; }
+  var zip = new window.JSZip(), used = {};
+  list.forEach(function (d) {
+    var name = docFileName(d), n = 2;
+    while (used[name]) name = docFileName(d).replace(/\.pdf$/, " (" + (n++) + ").pdf");
+    used[name] = true;
+    zip.file(name, buildDocPdf(d).output("blob"));
+  });
+  var zipName = ("Unpaid invoices - " + pdfText(c.name || "Client").trim() + " - " + fmtDate(todayIso())).replace(/[\/\\:*?"<>|]+/g, "-").replace(/\s+/g, " ").slice(0, 120) + ".zip";
+  var out = await zip.generateAsync({ type: "blob" });
+  var a = document.createElement("a"), href = URL.createObjectURL(out);
+  a.href = href; a.download = zipName; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(href); }, 60000);
+  toast(list.length + " unpaid invoices saved to " + zipName + ".");
 }
 // Opens the PDF in a new tab so you can print it from there.
 function printDocPdf(d) {

@@ -177,11 +177,12 @@ select, .field-input { border-radius: 9px; padding: 8px 10px; }
 body.dk-theme {
   --font-ui: 'Geist', system-ui, sans-serif;
   --font-head: 'Geist', system-ui, sans-serif;
-  --font-mono: 'Geist Mono', ui-monospace, Menlo, monospace;
+  --font-mono: 'Geist', system-ui, sans-serif; /* one font everywhere: Geist Mono's 0 has a slash */
   --side-bg: #1C2140; --side-ink: #E8EAF6; --side-dim: rgba(232,234,246,0.62);
   --side-hover: rgba(255,255,255,0.07); --side-line: rgba(255,255,255,0.09); --side-active: #A9B4FF;
   --radius-card: 14px; --radius-tag: 8px;
   font-size: 14px;
+  font-variant-numeric: tabular-nums; /* figures line up in tables without a monospace font */
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) body.dk-theme { --side-bg: #0E1019; --side-active: #9AA6F5; }

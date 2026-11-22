@@ -505,6 +505,7 @@ var ACTIONS = {
   "contact-del": function (id, el) { var c = byId(state.data.clients, id); c.contacts = c.contacts.filter(function (k) { return k.id !== el.getAttribute("data-sub"); }); render(); },
   // Statement of account on the client page
   "stmt-pdf": function (id) { var c = byId(state.data.clients, id); if (c) downloadStatementPdf(c, state.stmtRange[id] || {}); },
+  "stmt-unpaid": function (id) { var c = byId(state.data.clients, id); if (c) { saveBeforePdf(); downloadUnpaidInvoices(c); } },
   "stmt-pdf-all": function (id) { var c = byId(state.data.clients, id); if (c) downloadStatementPdf(c, {}); },
   "stmt-clear": function (id) { delete state.stmtRange[id]; render(); },
   "hist-sort": function (id) { var h = state.histSort; h.dir = h.key === id ? -h.dir : (id === "job" || id === "ref" ? 1 : -1); h.key = id; render(); },
