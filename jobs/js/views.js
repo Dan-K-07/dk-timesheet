@@ -5,10 +5,10 @@
    ===================================================================== */
 
 var TABS = [
-  { key: "home", label: "Home", group: "Work", icon: "home" },
-  { key: "jobs", label: "Jobs", group: "Work", icon: "briefcase" },
+  { key: "home", label: "Home", group: "Work", icon: "home", mobile: "Home" },
+  { key: "jobs", label: "Jobs", group: "Work", icon: "briefcase", mobile: "Jobs" },
   { key: "clients", label: "Clients", group: "Work", icon: "users" },
-  { key: "invoices", label: "Quotes & Invoices", group: "Money", icon: "file" },
+  { key: "invoices", label: "Quotes & Invoices", group: "Money", icon: "file", mobile: "Invoices" },
   { key: "expenses", label: "Expenses", group: "Money", icon: "receipt" },
   { key: "mileage", label: "Mileage", group: "Money", icon: "car" },
   { key: "reports", label: "Reports", group: "Money", icon: "chart" },
@@ -276,7 +276,7 @@ function render() {
   }
   app.innerHTML = '<div class="shell' + (state.navOpen ? " nav-open" : "") + '">' + renderSidebar() +
     '<div class="nav-scrim" data-action="nav-close"></div>' +
-    '<main class="main">' + renderMobileBar() + '<div class="main-inner">' + body + '</div>' + renderSaveBar() + '</main></div>';
+    '<main class="main">' + renderMobileBar() + '<div class="main-inner">' + body + '</div>' + renderSaveBar() + '</main>' + renderBottomNav() + '</div>';
   rememberForm();
   paintSaveBar();
 }
@@ -321,10 +321,19 @@ function renderSidebar() {
       '</div>' +
     '</aside>';
 }
+// Phones: slim bar at the top, tab bar at the bottom (same layout as Sky Spark).
 function renderMobileBar() {
-  return '<div class="mobile-bar"><button class="icon-only" data-action="nav-open" aria-label="Menu">' + icon("menu") + '</button>' +
-    '<span class="brand-badge sm">DK</span><span class="mobile-title">' + escapeHtml((TABS.filter(function (t) { return t.key === (state.route.tab === "doc" ? "invoices" : state.route.tab); })[0] || TABS[0]).label) + '</span>' +
-    '<a class="icon-only" href="' + attr(timesheetAppUrl()) + '" title="Open Timesheet">' + icon("swap") + '</a></div>';
+  return '<div class="mobile-bar"><span class="brand-badge sm">DK</span><span class="mobile-title">DK Jobs</span>' +
+    '<a class="icon-only" href="' + attr(timesheetAppUrl()) + '" title="Open Timesheet" aria-label="Open Timesheet">' + icon("swap") + '</a></div>';
+}
+function renderBottomNav() {
+  var cur = state.route.tab === "doc" ? "invoices" : state.route.tab, onMain = false;
+  var items = TABS.filter(function (t) { return t.mobile; }).map(function (t) {
+    if (cur === t.key) onMain = true;
+    return '<a class="bottom-link' + (cur === t.key ? " active" : "") + '" href="#/' + t.key + '">' + icon(t.icon) + '<span>' + t.mobile + '</span></a>';
+  }).join("");
+  return '<nav class="bottom-nav" aria-label="Main">' + items +
+    '<button type="button" class="bottom-link' + (onMain ? "" : " active") + '" data-action="nav-open">' + icon("menu") + '<span>More</span></button></nav>';
 }
 function pageHeader(title, sub, actionsHtml) {
   return '<div class="page-header"><div><h1 class="page-h1">' + escapeHtml(title) + '</h1>' + (sub ? '<div class="page-sub">' + escapeHtml(sub) + '</div>' : "") + '</div>' +
