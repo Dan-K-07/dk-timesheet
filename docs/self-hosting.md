@@ -14,8 +14,12 @@ Same setup as Sky Spark: same NUC, same Coolify, same `nuc-server` tunnel.
 - Old combined-site links: `/jobs/...` on either site redirects to the jobs home page (keeping the `#...` part).
 - Logins are separate per site (browser storage is per subdomain). Password reset is on the timesheet site; the jobs login page links there.
 
-## Coolify (one project "Timesheets & Jobs", two resources)
-For each resource: GitHub App, this repo, branch `main`. Build pack **Nixpacks**, tick **Is it a static site?**, publish directory `dist`.
+## Coolify (project "Timesheets & Jobs", environment "production", two resources)
+Dashboard: `http://192.168.0.196:8000` on the LAN (live updates don't work through the public Coolify address; harmless).
+
+For each resource: GitHub App **skyspark-github** (the same app as Sky Spark, it can see this repo), repo `Dan-K-07/dk-timesheet`, branch `main`. Build pack **Nixpacks**, output type **Static site**, publish directory `/dist`, base directory `/`. Coolify warns that Nixpacks is deprecated; it still works. Moving to Railpack is a later job.
+
+Resource names: `timesheets` and `jobs`. Both show "Running (no healthcheck)", which is normal for a static site. A push to `main` redeploys both.
 
 | Setting | Timesheets | Jobs |
 |---|---|---|
@@ -29,12 +33,12 @@ Env vars on **both** (tick "Build variable"):
 Domains use **http://**. Cloudflare does HTTPS; https here causes a redirect loop.
 
 ## Cloudflare
-- Tunnel `nuc-server`: public hostnames `timesheets` and `jobs` on `dkevent.co.uk`, type HTTP, URL `localhost:80`.
-- Access: one application covering both hostnames, allow-list policy.
+- Tunnel `nuc-server`: published application routes `timesheets` and `jobs` on `dkevent.co.uk`, type HTTP, URL `localhost:80` (same tunnel as Sky Spark, no new `cloudflared`).
+- Access: application **Timesheets & Jobs** covering both hostnames, policy **Dan only** (Allow, one email), one-time PIN, separate from Sky Spark's.
 - Don't touch the email DNS records (MX/SPF/DKIM/DMARC/autodiscover): keep them DNS only.
 
 ## Supabase Auth
-Authentication → URL Configuration → Redirect URLs:
+Authentication → URL Configuration. Site URL: `https://timesheets.dkevent.co.uk`. Redirect URLs:
 - `https://timesheets.dkevent.co.uk/**`
 - `https://jobs.dkevent.co.uk/**`
 - the Netlify URL (while it's the standby)
@@ -42,7 +46,14 @@ Authentication → URL Configuration → Redirect URLs:
 ## Netlify standby
 `netlify.toml` serves the repo as-is (no build): timesheet at `/`, jobs at `/jobs/`. The blank `js/site-config.js` files in the repo keep the old relative links.
 
-**Failover if the NUC is down:** in Cloudflare, point both hostnames at the Netlify site. It's the combined app, so it covers both.
+**Failover if the NUC is down:**
+1. Quickest: just use the Netlify address (bookmark it). Timesheet at `/`, jobs at `/jobs/`.
+2. To keep the dkevent addresses working: in the tunnel, delete the `timesheets` and `jobs` routes, then add DNS records `timesheets` and `jobs` as CNAME to the Netlify address (proxied), and add both as domains on the Netlify site. Undo when the NUC is back.
+
+Note: each site keeps its own login and its own copy of data in the browser (it syncs to Supabase). Before switching between Netlify and the NUC on a device, let it finish syncing.
+
+## Status
+Moved 2026-11. Phone tests on 4G passed: Access, logins, links between sites, `/jobs/` redirect, refresh, add/edit/delete, totals match Netlify.
 
 ## Build locally
 ```bash

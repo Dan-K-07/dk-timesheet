@@ -18,7 +18,7 @@ function render() {
     '<div class="nav-scrim" id="navScrim"></div>' +
     '<main class="main">' + renderMobileBar() + '<div class="main-inner">' +
       '<div class="page-header"><div><h1 class="page-h1">' + t.label + '</h1><div class="page-sub">' + t.sub + '</div></div></div>' +
-      body + '</div></main></div>'; } finally { render.busy = false; }
+      body + '</div></main>' + renderBottomNav() + '</div>'; } finally { render.busy = false; }
   attachEvents();
 }
 
@@ -71,9 +71,9 @@ function renderGate() {
 
 /* ============ Layout: sidebar (shared look with DK Jobs) ============ */
 var NAV_TABS = [
-  { key: "summary", label: "Summary", group: "Timesheet", icon: "chart", sub: "Hours and pay at a glance" },
-  { key: "log", label: "All Data", group: "Timesheet", icon: "list", sub: "Every day you've logged" },
-  { key: "leave", label: "Holiday & TOIL", group: "Timesheet", icon: "calendar", sub: "Holiday allowance, bank holidays and TOIL" },
+  { key: "summary", label: "Summary", group: "Timesheet", icon: "chart", mobile: "Summary", sub: "Hours and pay at a glance" },
+  { key: "log", label: "All Data", group: "Timesheet", icon: "list", mobile: "All Data", sub: "Every day you've logged" },
+  { key: "leave", label: "Holiday & TOIL", group: "Timesheet", icon: "calendar", mobile: "Holiday", sub: "Holiday allowance, bank holidays and TOIL" },
   { key: "docs", label: "Documents", group: "Timesheet", icon: "file", sub: "Payslips and paperwork" },
   { key: "calc", label: "Take-Home Pay", group: "Money", icon: "pound", sub: "What you'll actually take home" },
   { key: "expenses", label: "Expenses", group: "Money", icon: "receipt", sub: "Regular bills and subscriptions" },
@@ -123,10 +123,19 @@ function renderSidebar() {
       '</div>' +
     '</aside>';
 }
+// Phones: slim bar at the top, tab bar at the bottom (same layout as Sky Spark).
 function renderMobileBar() {
-  return '<div class="mobile-bar"><button class="icon-only" id="navOpenBtn" aria-label="Menu">' + navIcon("menu") + '</button>' +
-    '<span class="brand-badge sm">DK</span><span class="mobile-title">' + currentTab().label + '</span>' +
-    '<a class="icon-only" href="' + escapeHtml(jobsAppUrl()) + '" title="Open Jobs">' + navIcon("swap") + '</a></div>';
+  return '<div class="mobile-bar"><span class="brand-badge sm">DK</span><span class="mobile-title">DK Timesheet</span>' +
+    '<a class="icon-only" href="' + escapeHtml(jobsAppUrl()) + '" title="Open Jobs" aria-label="Open Jobs">' + navIcon("swap") + '</a></div>';
+}
+function renderBottomNav() {
+  var onMain = false;
+  var items = NAV_TABS.filter(function (t) { return t.mobile; }).map(function (t) {
+    if (state.tab === t.key) onMain = true;
+    return '<button type="button" class="bottom-link' + (state.tab === t.key ? " active" : "") + '" data-tab="' + t.key + '">' + navIcon(t.icon) + '<span>' + t.mobile + '</span></button>';
+  }).join("");
+  return '<nav class="bottom-nav" aria-label="Main">' + items +
+    '<button type="button" class="bottom-link' + (onMain ? "" : " active") + '" id="navOpenBtn">' + navIcon("menu") + '<span>More</span></button></nav>';
 }
 
 function docIcon(mime, filename) {

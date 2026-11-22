@@ -164,3 +164,105 @@ select, .field-input { border-radius: 9px; padding: 8px 10px; }
 .dk-theme .entry-form { border-color: var(--accent); }
 .dk-theme .month-table tr.busiest td { background: var(--accent-soft); }
 .dk-theme .bulk-bar { border-color: var(--accent); }
+
+/* =====================================================================
+   Sky Spark layout (v2.12 / Jobs v2.2): same fonts, sidebar, headings,
+   cards and phone layout as Sky Spark, in the DK colours.
+   - Geist font
+   - dark sidebar, brand at the top, quiet active link (tinted text)
+   - flat cards with a hairline border, smaller buttons, semibold not extra-bold
+   - phones: slim dark bar at the top and a tab bar at the bottom; "More"
+     opens the full menu
+   ===================================================================== */
+body.dk-theme {
+  --font-ui: 'Geist', system-ui, sans-serif;
+  --font-head: 'Geist', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, Menlo, monospace;
+  --side-bg: #1C2140; --side-ink: #E8EAF6; --side-dim: rgba(232,234,246,0.62);
+  --side-hover: rgba(255,255,255,0.07); --side-line: rgba(255,255,255,0.09); --side-active: #A9B4FF;
+  --radius-card: 14px; --radius-tag: 8px;
+  font-size: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) body.dk-theme { --side-bg: #0E1019; --side-active: #9AA6F5; }
+}
+:root[data-theme="dark"] body.dk-theme { --side-bg: #0E1019; --side-active: #9AA6F5; }
+
+/* Sidebar */
+.dk-theme .sidebar { width: 240px; background: var(--side-bg); color: var(--side-ink); border-right: none; padding: 20px 12px 12px; }
+.dk-theme .side-brand { color: var(--side-ink); padding: 0 8px 20px; gap: 10px; }
+.dk-theme .brand-badge { background: var(--accent); color: #fff; width: 30px; height: 30px; border-radius: 8px; font-weight: 700; font-size: 12px; }
+.dk-theme .brand-text { font-weight: 600; font-size: 17px; }
+.dk-theme .brand-text small { color: var(--side-dim); }
+.dk-theme .nav-group { color: var(--side-dim); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; padding: 22px 12px 6px; }
+.dk-theme .nav-group:first-child { padding-top: 0; }
+.dk-theme .nav-link { color: var(--side-ink); font-weight: 500; font-size: 14px; padding: 8px 12px; border-radius: 6px; gap: 12px; }
+.dk-theme .nav-link .ico { width: 16px; height: 16px; }
+.dk-theme .nav-link:hover { background: var(--side-hover); color: var(--side-ink); }
+.dk-theme .nav-link.active { background: var(--side-hover); color: var(--side-active); box-shadow: none; }
+.dk-theme .side-foot { border-top-color: var(--side-line); padding-top: 12px; }
+.dk-theme .switch-app { background: var(--side-hover); color: var(--side-ink); font-weight: 500; font-size: 14px; border-radius: 6px; padding: 8px 12px; }
+.dk-theme .switch-app:hover { background: rgba(255,255,255,0.12); filter: none; }
+.dk-theme .sidebar .sync-pill { color: var(--side-dim); }
+.dk-theme .sidebar .icon-only { color: var(--side-dim); border-radius: 6px; }
+.dk-theme .sidebar .icon-only:hover { background: var(--side-hover); color: var(--side-ink); }
+
+/* Main area and headings */
+.dk-theme .main-inner { max-width: none; padding: 24px 32px 32px; }
+.dk-theme .page-header { margin-bottom: 20px; }
+.dk-theme .page-h1 { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; }
+.dk-theme .page-sub { font-size: 14px; margin-top: 4px; }
+.dk-theme .page-title, .dk-theme .gate-mark, .dk-theme .brand .mark { font-weight: 600; letter-spacing: -0.01em; }
+
+/* Cards, buttons, fields */
+.dk-theme .card { box-shadow: none; border: 1px solid var(--line); }
+.dk-theme .btn { border-radius: 8px; font-weight: 500; padding: 6px 12px; min-height: 32px; }
+.dk-theme .btn-sm { border-radius: 7px; padding: 4px 10px; min-height: 28px; }
+.dk-theme .btn-primary { box-shadow: none; }
+.dk-theme select, .dk-theme .field-input { border-radius: 8px; }
+.dk-theme .stat-value { font-weight: 600; }
+.dk-theme .stat-label { font-weight: 500; letter-spacing: 0.04em; }
+.dk-theme .section-title { font-weight: 600; }
+.dk-theme .tag { font-weight: 600; }
+.dk-theme .quick { font-weight: 600; box-shadow: none; border-radius: 14px; }
+.dk-theme .quick:hover { box-shadow: none; }
+.dk-theme .gate-card { border-radius: 14px; box-shadow: none; }
+
+/* Phone tab bar (hidden on bigger screens) */
+.bottom-nav { display: none; }
+
+@media (max-width: 767px) {
+  .dk-theme .sidebar { position: fixed; left: 0; top: 0; z-index: 50; transform: translateX(-100%); transition: transform 0.2s ease; }
+  .dk-theme .nav-open .sidebar { transform: none; box-shadow: 0 0 40px rgba(0,0,0,0.3); }
+  .dk-theme .nav-open .nav-scrim { display: block; position: fixed; inset: 0; background: rgba(10,12,25,0.45); z-index: 45; }
+  .dk-theme .mobile-bar {
+    display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 30;
+    height: 56px; padding: 0 8px 0 16px; background: var(--side-bg); color: var(--side-ink); border-bottom: none;
+  }
+  .dk-theme .mobile-title { flex: 1; font-weight: 600; font-size: 17px; }
+  .dk-theme .mobile-bar .icon-only { color: var(--side-ink); width: 44px; height: 44px; }
+  .dk-theme .mobile-bar .icon-only:hover { background: var(--side-hover); }
+  .dk-theme .main-inner { padding: 20px 16px 96px; }
+  .dk-theme .page-h1 { font-size: 24px; }
+  .bottom-nav {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    background: var(--side-bg); border-top: 1px solid var(--side-line); padding-bottom: env(safe-area-inset-bottom);
+  }
+  .bottom-link {
+    flex: 1; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    background: none; border: none; padding: 0; color: var(--side-dim); font-family: var(--font-ui); font-size: 12px; line-height: 1.2; font-weight: 500; text-decoration: none; cursor: pointer;
+  }
+  .bottom-link .ico { width: 24px; height: 24px; }
+  .bottom-link.active { color: var(--side-active); }
+  .toast { bottom: 84px; }
+  .save-bar { bottom: calc(64px + env(safe-area-inset-bottom)); }
+}
+/* Tablets (768-900px) keep the sidebar showing, like Sky Spark */
+@media (min-width: 768px) and (max-width: 900px) {
+  .dk-theme .sidebar { position: sticky; transform: none; }
+  .dk-theme .mobile-bar { display: none; }
+  .dk-theme .main-inner { padding: 20px 20px 32px; }
+  .save-bar { left: 240px; }
+}
+@media (min-width: 901px) { .save-bar { left: 240px; } }
+@media print { .bottom-nav { display: none !important; } }
