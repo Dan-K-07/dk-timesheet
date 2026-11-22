@@ -4,7 +4,7 @@
 .app-switch:hover { background: var(--accent); color: var(--accent-ink); }
 a.tab { text-decoration: none; display: inline-block; }
 
-textarea.field-input { width: 100%; resize: vertical; line-height: 1.45; font-family: var(--font-ui); }
+textarea.field-input { width: 100%; resize: vertical; line-height: 1.45; font-family: var(--font-sans); }
 .field input, .field select, .field textarea { width: 100%; }
 .form-grid .span-2 { grid-column: span 2; }
 .form-grid .span-3 { grid-column: span 3; }
@@ -89,7 +89,7 @@ textarea.field-input { width: 100%; resize: vertical; line-height: 1.45; font-fa
 .page-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
 .back-link { width: 100%; font-size: 13px; text-decoration: none; color: var(--ink-dim); }
 .back-link:hover { color: var(--ink); }
-.page-title { font-family: var(--font-head); font-size: 24px; font-weight: 700; margin: 0; }
+.page-title { font-family: var(--font-sans); font-size: 24px; font-weight: 700; margin: 0; }
 .page-ref { font-family: var(--font-mono); font-size: 13px; color: var(--ink-dim); font-weight: 400; }
 
 /* Job page */
@@ -115,7 +115,7 @@ textarea.field-input { width: 100%; resize: vertical; line-height: 1.45; font-fa
 .todo-row .field-input { flex: 1; }
 .todo-row.done .field-input { text-decoration: line-through; color: var(--ink-dim); }
 .side-card { padding: 14px 16px; margin-bottom: 12px; }
-.side-title { font-family: var(--font-head); font-weight: 600; font-size: 14px; display: block; margin-bottom: 6px; }
+.side-title { font-family: var(--font-sans); font-weight: 600; font-size: 14px; display: block; margin-bottom: 6px; }
 .side-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .side-head .side-title { margin-bottom: 0; }
 .side-big { font-size: 26px; font-weight: 600; }

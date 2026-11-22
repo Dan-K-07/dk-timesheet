@@ -67,3 +67,12 @@ TIMESHEETS_URL=https://timesheets.dkevent.co.uk JOBS_URL=https://jobs.dkevent.co
 - Google Cloud project **DK Jobs**: Google Calendar API enabled; OAuth consent screen in **Testing** with Dan as a test user; scope `calendar.app.created` (only calendars the app makes); OAuth client (Web) with JavaScript origin `https://jobs.dkevent.co.uk`.
 - Code: `jobs/js/gcal.js`. Connect in Settings → Google Calendar. Keeps a "DK Jobs" Google calendar in step with jobs after each Save. Google access lasts an hour; the next tap gets a new one (a Google window may flash).
 - The calendar's ID is stored in the account data (`settings.gcalCalendarId`) so every device uses the same calendar.
+
+## Docker build, caching and health check (from Timesheet v2.13 / Jobs v2.6)
+Both Coolify resources build with the repo's `Dockerfile` (like Sky Spark): Node builds one section with `scripts/build.mjs`, nginx serves it (`nginx/default.conf`).
+- Coolify → each resource → General → **Build Pack: Dockerfile**. Env vars (all "Available at Buildtime"): `SITE_SECTION` (`timesheets` or `jobs`), `TIMESHEETS_URL`, `JOBS_URL`, and on jobs `GOOGLE_CLIENT_ID`. Port 80.
+- Caching: `/fonts/*` is cached for a year (file names carry a version, e.g. `.v1`); everything else is `Cache-Control: no-cache`, so Cloudflare and browsers always check for a new deploy.
+- Health check: HTTP GET `http://localhost:80/healthz`, expect 200 and `ok`.
+
+## Fonts
+Self-hosted in `fonts/` (see `fonts/README.md`): Geist for all text, Geist Mono (with a plain, unslashed zero) for dates, times, money, references and version numbers. Set once in `css/styles.css` as `--font-sans` / `--font-mono`, with `@font-face` in `css/theme.css`. PDFs use Helvetica (built into the PDF maker).

@@ -161,6 +161,7 @@ function modalOpen() { return !!document.querySelector("#modal .modal-scrim"); }
 // Pages where you type things in get a Save bar along the bottom.
 function editablePage() {
   var r = state.route;
+  if (r.tab === "clients" && r.sub === "statement") return false; // read-only: nothing to save
   if (r.tab === "jobs" || r.tab === "clients") return !!r.id;
   if (r.tab === "doc") { var d = byId(state.data.invoices, r.id); return !!d && d.status === "draft"; }
   return r.tab === "prices" || r.tab === "settings";
