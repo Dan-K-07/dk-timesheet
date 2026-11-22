@@ -7,6 +7,7 @@
 var TABS = [
   { key: "home", label: "Home", group: "Work", icon: "home", mobile: "Home" },
   { key: "jobs", label: "Jobs", group: "Work", icon: "briefcase", mobile: "Jobs" },
+  { key: "calendar", label: "Calendar", group: "Work", icon: "calendar", mobile: "Calendar" },
   { key: "clients", label: "Clients", group: "Work", icon: "users" },
   { key: "invoices", label: "Quotes & Invoices", group: "Money", icon: "file", mobile: "Invoices" },
   { key: "expenses", label: "Expenses", group: "Money", icon: "receipt" },
@@ -25,6 +26,7 @@ var ICONS = {
   receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/>',
   car: '<path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3z"/><circle cx="7.5" cy="13" r="1"/><circle cx="16.5" cy="13" r="1"/>',
   chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>',
   bin: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
   pencil: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/>',
@@ -258,6 +260,7 @@ function render() {
   switch (r.tab) {
     case "jobs": body = r.id ? renderJobPage(r.id) : renderJobs(); break;
     case "clients": body = renderClients(); break;
+    case "calendar": body = renderCalendar(); break;
     case "invoices": body = renderInvoices(); break;
     case "doc": body = renderDocPage(r.id); break;
     case "expenses": body = renderExpenses(); break;
@@ -267,10 +270,10 @@ function render() {
     case "settings": body = renderSettings(); break;
     default: body = renderHome();
   }
-  var SUBS = { jobs: "Every booking, from pencil to paid", clients: "Who you work for", invoices: "Quotes, invoices and what you're owed",
+  var SUBS = { jobs: "Every booking, from pencil to paid", calendar: "Your work, month by month", clients: "Who you work for", invoices: "Quotes, invoices and what you're owed",
     expenses: "Business costs and receipts", mileage: "Business journeys at HMRC rates", reports: "Figures for your tax return and MTD updates",
     prices: "Your rates, ready to drop onto a job", settings: "Your details, invoices, tax and mileage" };
-  if (!r.id && SUBS[r.tab]) {
+  if ((!r.id || r.tab === "calendar") && SUBS[r.tab]) {
     var t = TABS.filter(function (x) { return x.key === r.tab; })[0];
     body = pageHeader(t.label, SUBS[r.tab]) + body;
   }
