@@ -1,7 +1,7 @@
 "use strict";
 
 /* ============ Constants ============ */
-var APP_VERSION = "2.12.1"; // bump this whenever you change the app
+var APP_VERSION = "2.13.0"; // bump this whenever you change the app
 var TYPES = ["Warehouse", "On Site", "Holiday", "TOIL", "Sick", "Off"];
 var TYPE_CLASS = { "Warehouse": "tag-Warehouse", "On Site": "tag-OnSite", "Holiday": "tag-Holiday", "TOIL": "tag-TOIL", "Sick": "tag-Sick", "Off": "tag-Off" };
 var STORAGE_KEY = "dk_timesheet_entries_v1";

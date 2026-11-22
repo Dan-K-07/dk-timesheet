@@ -3,6 +3,17 @@
    Light, rounded, sidebar layout with a matching dark mode. Loaded
    after styles.css (and jobs.css) and overrides their colours/fonts.
    ===================================================================== */
+/* ---- Fonts: Geist (text) and Geist Mono (numbers, refs, versions), served from /fonts ----
+   Geist Mono's file has its plain zero as the default (see fonts/README.md). */
+@font-face {
+  font-family: 'Geist'; font-style: normal; font-weight: 100 900; font-display: swap;
+  src: url('../fonts/Geist-Variable.v1.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Geist Mono'; font-style: normal; font-weight: 100 900; font-display: swap;
+  src: url('../fonts/GeistMono-Variable.plain0.v1.woff2') format('woff2');
+}
+
 body.dk-theme {
   --bg: #F3F5FA; --panel: #FFFFFF; --panel-2: #F6F7FC; --ink: #1D2033; --ink-dim: #6C7290; --line: #E5E8F1;
   --accent: #4C5FD5; --accent-ink: #FFFFFF; --accent-soft: #ECEFFD;
@@ -11,9 +22,6 @@ body.dk-theme {
   --danger: #D2475B;
   --shadow: 0 1px 2px rgba(25,30,60,0.05), 0 6px 18px rgba(25,30,60,0.05);
   --radius-card: 14px; --radius-tag: 8px;
-  --font-ui: 'Plus Jakarta Sans', system-ui, sans-serif;
-  --font-head: 'Plus Jakarta Sans', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
   --side-bg: #FFFFFF;
 }
 @media (prefers-color-scheme: dark) {
@@ -110,7 +118,7 @@ select, .field-input { border-radius: 9px; padding: 8px 10px; }
 .chip.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .stat-card { padding: 18px 20px; }
 .stat-label { font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
-.stat-value { font-family: var(--font-ui); font-weight: 800; font-size: 25px; letter-spacing: -0.01em; }
+.stat-value { font-family: var(--font-sans); font-weight: 800; font-size: 25px; letter-spacing: -0.01em; }
 .section-title { font-weight: 700; font-size: 15.5px; }
 .log-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
 .log-table td, .log-table th { padding: 10px 12px; }
@@ -122,7 +130,7 @@ select, .field-input { border-radius: 9px; padding: 8px 10px; }
 .mb-key.booked { background: #8A5CF0; opacity: 0.35; }
 .q-icon { display: none; }
 .deadline.current { background: var(--accent-soft); }
-.month-table tfoot td { font-family: var(--font-ui); }
+.month-table tfoot td { font-family: var(--font-sans); }
 .doc-sheet { border-radius: 6px; }
 .ds-kind { color: #4C5FD5; }
 .gate-mark span { color: var(--accent); }
@@ -159,7 +167,7 @@ select, .field-input { border-radius: 9px; padding: 8px 10px; }
 .gate-mark { font-weight: 800; }
 
 /* Timesheet-only tweaks */
-.dk-theme .nav-link { width: 100%; background: none; border: none; text-align: left; font-family: var(--font-ui); cursor: pointer; }
+.dk-theme .nav-link { width: 100%; background: none; border: none; text-align: left; font-family: var(--font-sans); cursor: pointer; }
 .dk-theme .nav-link.active { background: var(--accent); }
 .dk-theme .entry-form { border-color: var(--accent); }
 .dk-theme .month-table tr.busiest td { background: var(--accent-soft); }
@@ -175,15 +183,23 @@ select, .field-input { border-radius: 9px; padding: 8px 10px; }
      opens the full menu
    ===================================================================== */
 body.dk-theme {
-  --font-ui: 'Geist', system-ui, sans-serif;
-  --font-head: 'Geist', system-ui, sans-serif;
-  --font-mono: 'Geist', system-ui, sans-serif; /* one font everywhere: Geist Mono's 0 has a slash */
   --side-bg: #1C2140; --side-ink: #E8EAF6; --side-dim: rgba(232,234,246,0.62);
   --side-hover: rgba(255,255,255,0.07); --side-line: rgba(255,255,255,0.09); --side-active: #A9B4FF;
   --radius-card: 14px; --radius-tag: 8px;
-  font-size: 14px;
-  font-variant-numeric: tabular-nums; /* figures line up in tables without a monospace font */
+  font-size: 15px; line-height: 1.5; font-weight: 400;
+  font-variant-numeric: tabular-nums; /* figures line up even where Geist (not Mono) is used */
 }
+/* Headings: semibold, slightly tight */
+.dk-theme h1, .dk-theme h2, .dk-theme h3, .dk-theme .page-title, .dk-theme .section-title, .dk-theme .settings-title,
+.dk-theme .gate-mark, .dk-theme .mc-title, .dk-theme .side-title { font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
+/* Dense UI: tables and the sidebar stay at 13-14px */
+.dk-theme .log-table, .dk-theme .month-table, .dk-theme .items-table { font-size: 13.5px; }
+.dk-theme .field label, .dk-theme .auth-label, .dk-theme .stat-label { font-weight: 500; }
+/* Geist Mono for numbers and codes in tables: dates, amounts, references */
+.dk-theme .log-table td.date-cell, .dk-theme .ref-link, .dk-theme .doc-num { font-family: var(--font-mono); }
+/* Geist Mono is a little wider than Geist: one notch smaller in tables, and Notes keeps some room */
+.dk-theme .log-table td.mono, .dk-theme .log-table td.num, .dk-theme .log-table td.date-cell, .dk-theme .month-table td { font-size: 13px; }
+.dk-theme .log-table .notes-cell { min-width: 110px; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) body.dk-theme { --side-bg: #0E1019; --side-active: #9AA6F5; }
 }
@@ -211,9 +227,9 @@ body.dk-theme {
 /* Main area and headings */
 .dk-theme .main-inner { max-width: none; padding: 24px 32px 32px; }
 .dk-theme .page-header { margin-bottom: 20px; }
-.dk-theme .page-h1 { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; }
+.dk-theme .page-h1 { font-size: 30px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.2; }
 .dk-theme .page-sub { font-size: 14px; margin-top: 4px; }
-.dk-theme .page-title, .dk-theme .gate-mark, .dk-theme .brand .mark { font-weight: 600; letter-spacing: -0.01em; }
+.dk-theme .page-title, .dk-theme .gate-mark, .dk-theme .brand .mark { font-weight: 600; letter-spacing: -0.03em; }
 
 /* Cards, buttons, fields */
 .dk-theme .card { box-shadow: none; border: 1px solid var(--line); }
@@ -251,7 +267,7 @@ body.dk-theme {
   }
   .bottom-link {
     flex: 1; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
-    background: none; border: none; padding: 0; color: var(--side-dim); font-family: var(--font-ui); font-size: 12px; line-height: 1.2; font-weight: 500; text-decoration: none; cursor: pointer;
+    background: none; border: none; padding: 0; color: var(--side-dim); font-family: var(--font-sans); font-size: 12px; line-height: 1.2; font-weight: 500; text-decoration: none; cursor: pointer;
   }
   .bottom-link .ico { width: 24px; height: 24px; }
   .bottom-link.active { color: var(--side-active); }

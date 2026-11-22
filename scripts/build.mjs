@@ -39,6 +39,7 @@ const redirectPage = (target) =>
 
 if (section === "timesheets") {
   copy("index.html", "index.html");
+  copy("fonts", "fonts");
   copy("css", "css");
   copy("js", "js");
   // Old combined-site links to /jobs/... go to the jobs site.
@@ -50,7 +51,8 @@ if (section === "timesheets") {
   copy("css/styles.css", "css/styles.css");
   copy("css/theme.css", "css/theme.css");
   const html = join(dist, "index.html");
-  writeFileSync(html, readFileSync(html, "utf8").replaceAll('href="../css/', 'href="css/'));
+  copy("fonts", "fonts");
+  writeFileSync(html, readFileSync(html, "utf8").replaceAll('href="../css/', 'href="css/').replaceAll('href="../fonts/', 'href="fonts/'));
   // An old /jobs/... link that lands here goes to the jobs home page.
   mkdirSync(join(dist, "jobs"), { recursive: true });
   writeFileSync(join(dist, "jobs", "index.html"), redirectPage(jobsUrl + "/"));
