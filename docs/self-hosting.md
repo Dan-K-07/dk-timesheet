@@ -30,6 +30,9 @@ Env vars on **both** (tick "Build variable"):
 - `TIMESHEETS_URL=https://timesheets.dkevent.co.uk`
 - `JOBS_URL=https://jobs.dkevent.co.uk`
 
+Jobs resource only (optional, for Google Calendar sync; tick "Build variable"):
+- `GOOGLE_CLIENT_ID=<OAuth client ID from Google Cloud project "DK Jobs">`. It's public, not a secret. Without it, Settings → Google Calendar says "Not set up".
+
 Domains use **http://**. Cloudflare does HTTPS; https here causes a redirect loop.
 
 ## Cloudflare
@@ -59,3 +62,8 @@ Moved 2026-11. Phone tests on 4G passed: Access, logins, links between sites, `/
 ```bash
 TIMESHEETS_URL=https://timesheets.dkevent.co.uk JOBS_URL=https://jobs.dkevent.co.uk npm run build:jobs
 ```
+
+## Google Calendar sync (jobs site)
+- Google Cloud project **DK Jobs**: Google Calendar API enabled; OAuth consent screen in **Testing** with Dan as a test user; scope `calendar.app.created` (only calendars the app makes); OAuth client (Web) with JavaScript origin `https://jobs.dkevent.co.uk`.
+- Code: `jobs/js/gcal.js`. Connect in Settings → Google Calendar. Keeps a "DK Jobs" Google calendar in step with jobs after each Save. Google access lasts an hour; the next tap gets a new one (a Google window may flash).
+- The calendar's ID is stored in the account data (`settings.gcalCalendarId`) so every device uses the same calendar.
