@@ -4,6 +4,7 @@
 #   TIMESHEETS_URL    https://timesheets.dkevent.co.uk
 #   JOBS_URL          https://jobs.dkevent.co.uk
 #   GOOGLE_CLIENT_ID  jobs only, optional (public, not a secret)
+#   GOOGLE_PLACES_KEY jobs only, optional (browser key, locked to jobs.dkevent.co.uk)
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY . .
@@ -11,6 +12,7 @@ ARG SITE_SECTION
 ARG TIMESHEETS_URL
 ARG JOBS_URL
 ARG GOOGLE_CLIENT_ID
+ARG GOOGLE_PLACES_KEY
 RUN node scripts/build.mjs "$SITE_SECTION"
 
 FROM nginx:1.27-alpine

@@ -71,6 +71,58 @@ function addressSuggestions(q) {
     return out.slice(0, 7);
   });
 }
+/* ---------- Google place search (Places API, New) for the Venue box ----------
+   Used when the site has a Google key (GOOGLE_PLACES_KEY at build time). Finds
+   venues by name like Google Maps does. Typing and the final pick share one
+   "session" so Google counts them together. If Google refuses (daily limit
+   reached, key problem, no signal) it switches to the free search above for
+   the rest of the visit. Only the venue name (from the suggestion) and the
+   formatted address are asked for, which keeps it on Google's cheapest tier. */
+var gPlaces = { session: "", down: false };
+function gPlacesKey() { return (window.DK_SITE && window.DK_SITE.googlePlacesKey) || ""; }
+function gPlacesSession() {
+  if (!gPlaces.session) gPlaces.session = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : uid("s");
+  return gPlaces.session;
+}
+function gPlacesFetch(url, opts) {
+  return fetch(url, opts).then(function (r) {
+    if (!r.ok) { if (r.status === 403 || r.status === 429 || r.status === 400) gPlaces.down = true; throw new Error("Google " + r.status); }
+    return r.json();
+  });
+}
+function googleSuggestions(q) {
+  return gPlacesFetch("https://places.googleapis.com/v1/places:autocomplete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Goog-Api-Key": gPlacesKey() },
+    body: JSON.stringify({ input: q, sessionToken: gPlacesSession(), includedRegionCodes: ["gb"], languageCode: "en-GB" })
+  }).then(function (d) {
+    return (d.suggestions || []).map(function (s) {
+      var p = s.placePrediction; if (!p) return null;
+      var f = p.structuredFormat || {};
+      return { label: (p.text && p.text.text) || "", name: f.mainText && f.mainText.text, placeId: p.placeId };
+    }).filter(function (x) { return x && x.label; }).slice(0, 6);
+  });
+}
+// The full postal address for a picked suggestion, e.g.
+// "Cove Cricket Club, Grasmere Road, Farnborough GU14 0LE".
+function googleAddress(item) {
+  return gPlacesFetch("https://places.googleapis.com/v1/places/" + encodeURIComponent(item.placeId) + "?sessionToken=" + encodeURIComponent(gPlacesSession()), {
+    headers: { "X-Goog-Api-Key": gPlacesKey(), "X-Goog-FieldMask": "formattedAddress" }
+  }).then(function (d) {
+    gPlaces.session = "";
+    var addr = String(d.formattedAddress || "").replace(/,\s*(UK|United Kingdom)$/i, "");
+    if (!addr) return item.label;
+    return item.name && addr.toLowerCase().indexOf(item.name.toLowerCase()) !== 0 ? item.name + ", " + addr : addr;
+  });
+}
+// Suggestions for the Venue box: Google when available, else the free search.
+function venueSuggestions(q) {
+  q = q.trim();
+  if (q.length < 3) return Promise.resolve([]);
+  if (!gPlacesKey() || gPlaces.down) return addressSuggestions(q);
+  return googleSuggestions(q).catch(function () { return addressSuggestions(q); });
+}
+
 // Any box marked data-place-lookup (the job's Venue) suggests addresses as you
 // type. Picking one fills the box as if you'd typed it, so Save works as normal.
 (function () {
@@ -83,19 +135,25 @@ function addressSuggestions(q) {
     clearTimeout(timer);
     timer = setTimeout(function () {
       var mySeq = ++seq;
-      addressSuggestions(input.value).then(function (items) {
+      venueSuggestions(input.value).then(function (items) {
         if (mySeq !== seq || document.activeElement !== input) return;
         list.innerHTML = items.map(function (s, i) { return '<button type="button" class="place-opt" data-i="' + i + '">' + icon("pin") + '<span>' + escapeHtml(s.label) + '</span></button>'; }).join("");
         list.classList.toggle("open", items.length > 0);
         list.querySelectorAll(".place-opt").forEach(function (b) {
           b.addEventListener("mousedown", function (e) {
             e.preventDefault();
-            input._picking = true;
-            input.value = items[parseInt(b.getAttribute("data-i"), 10)].label;
-            input.dispatchEvent(new Event("input", { bubbles: true }));
-            input.dispatchEvent(new Event("change", { bubbles: true }));
-            input._picking = false;
+            var item = items[parseInt(b.getAttribute("data-i"), 10)];
+            var put = function (text) {
+              input._picking = true;
+              input.value = text;
+              input.dispatchEvent(new Event("input", { bubbles: true }));
+              input.dispatchEvent(new Event("change", { bubbles: true }));
+              input._picking = false;
+            };
+            put(item.label);
             list.classList.remove("open");
+            // A Google pick: swap in the full postal address (with postcode).
+            if (item.placeId) googleAddress(item).then(function (full) { if (input.value === item.label) put(full); }).catch(function () {});
           });
         });
       });

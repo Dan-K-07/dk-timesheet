@@ -77,3 +77,8 @@ Both Coolify resources build with the repo's `Dockerfile` (like Sky Spark): Node
 
 ## Fonts
 Self-hosted in `fonts/` (see `fonts/README.md`): Geist for all text, Geist Mono (with a plain, unslashed zero) for dates, times, money, references and version numbers. Set once in `css/styles.css` as `--font-sans` / `--font-mono`, with `@font-face` in `css/theme.css`. PDFs use Helvetica (built into the PDF maker).
+
+## Venue search (Google Places)
+- Jobs build variable `GOOGLE_PLACES_KEY` (Buildtime): a browser API key from the **DK Jobs** Google Cloud project, restricted to the **Places API (New)** and to the website `https://jobs.dkevent.co.uk/*`. Without it, the Venue box uses the free OpenStreetMap search.
+- Cost guard: billing account linked, **quotas** on Places API (New) capped per day (Autocomplete requests and Place Details) so monthly use stays under Google's free allowance, plus a £1 budget alert. Code asks only for `formattedAddress` (cheapest tier) and uses session tokens.
+- If Google refuses (quota reached, key problem), the box falls back to the free search for the rest of that visit.

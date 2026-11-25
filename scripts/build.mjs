@@ -18,6 +18,8 @@ const timesheetsUrl = clean(process.env.TIMESHEETS_URL);
 const jobsUrl = clean(process.env.JOBS_URL);
 // Optional: Google OAuth client ID for the jobs site's Google Calendar sync (public, not a secret).
 const googleClientId = String(process.env.GOOGLE_CLIENT_ID || "").trim();
+// Optional: Google Places key for the Venue search (browser key, locked to the jobs site in Google Cloud).
+const googlePlacesKey = String(process.env.GOOGLE_PLACES_KEY || "").trim();
 if (!/^https?:\/\//.test(timesheetsUrl) || !/^https?:\/\//.test(jobsUrl)) {
   console.error("Set TIMESHEETS_URL and JOBS_URL (e.g. https://timesheets.example.com) before building.");
   process.exit(1);
@@ -28,7 +30,7 @@ mkdirSync(dist, { recursive: true });
 const copy = (from, to) => cpSync(join(root, from), join(dist, to), { recursive: true });
 const siteConfig =
   "/* Written by scripts/build.mjs - do not edit in dist/. */\n" +
-  "window.DK_SITE = " + JSON.stringify({ section, timesheetsUrl, jobsUrl, googleClientId }) + ";\n";
+  "window.DK_SITE = " + JSON.stringify({ section, timesheetsUrl, jobsUrl, googleClientId, googlePlacesKey }) + ";\n";
 
 // A tiny page that sends old links (e.g. /jobs/#/jobs/J0001) to the right site, keeping the #... part.
 const redirectPage = (target) =>
