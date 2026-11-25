@@ -200,7 +200,7 @@ function renderStatement(c) {
     st.rows.map(function (r) {
       return '<tr' + (r.detail === "Payment" ? ' class="stmt-pay"' : "") + '><td class="date-cell">' + fmtDate(r.date) + '</td>' +
         '<td><a class="ref-link" href="#/doc/' + encodeURIComponent(r.inv.id) + '">' + escapeHtml(r.ref) + '</a></td>' +
-        '<td>' + r.detail + '</td><td class="date-cell">' + (r.due ? fmtDate(r.due) : "") + '</td>' +
+        '<td class="stmt-detail" title="' + attr(r.detail) + '">' + escapeHtml(r.detail) + '</td><td class="date-cell">' + (r.due ? fmtDate(r.due) : "") + '</td>' +
         '<td class="num">' + cell(r.charge) + '</td><td class="num">' + cell(r.paid) + '</td><td class="num">' + money(r.balance) + '</td></tr>';
     }).join("");
   if (!st.rows.length) body += '<tr><td colspan="7" class="list-empty">' + (st.any ? "Nothing in these dates." : "No invoices sent to this client yet — sent and paid invoices show here.") + '</td></tr>';

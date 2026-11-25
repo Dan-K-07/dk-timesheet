@@ -291,8 +291,14 @@ function buildStatementPdf(c, st) {
   font(9, "normal", PDF_DIM); pdf.text(pdfText(period), M, y); y += 8;
 
   /* ---- Transactions: plain table, a hairline under each row ---- */
-  var cols = [["Date", M, "left"], ["Reference", M + 30, "left"], ["Detail", M + 57, "left"], ["Due", M + 79, "left"],
-    ["Charge", R - 50, "right"], ["Credit / paid", R - 24, "right"], ["Balance", R, "right"]];
+  var cols = [["Date", M, "left"], ["Reference", M + 24, "left"], ["Detail", M + 47, "left"], ["Due", M + 98, "left"],
+    ["Charge", R - 48, "right"], ["Credit / paid", R - 23, "right"], ["Balance", R, "right"]];
+  var fit = function (text, w) {
+    text = pdfText(text);
+    if (pdf.getTextWidth(text) <= w) return text;
+    while (text.length > 1 && pdf.getTextWidth(text + "...") > w) text = text.slice(0, -1);
+    return text.trim() + "...";
+  };
   function tableHead() {
     font(8.5, "bold", PDF_DIM);
     cols.forEach(function (c2) { pdf.text(c2[0], c2[1], y, { align: c2[2] }); });
@@ -310,8 +316,8 @@ function buildStatementPdf(c, st) {
     } else {
       font(9, "normal", PDF_DIM);
       pdf.text(pdfText(fmtDate(r.date)), cols[0][1], ty);
-      pdf.text(lines(r.ref, 27)[0] || "", cols[1][1], ty);
-      pdf.text(r.detail, cols[2][1], ty);
+      pdf.text(fit(r.ref, 21), cols[1][1], ty);
+      pdf.text(fit(r.detail, 49), cols[2][1], ty);
       if (r.due) pdf.text(pdfText(fmtDate(r.due)), cols[3][1], ty);
       font(9, "normal");
       if (r.charge) pdf.text(pdfMoney(r.charge), cols[4][1], ty, { align: "right" });

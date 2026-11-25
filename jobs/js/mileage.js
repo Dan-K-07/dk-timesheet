@@ -43,6 +43,75 @@ function placeSuggestions(q) {
     return out.slice(0, 7);
   });
 }
+// Full addresses for the job's Venue box: venue name, street, town, postcode.
+function addressSuggestions(q) {
+  q = q.trim();
+  if (q.length < 3) return Promise.resolve([]);
+  var jobs = [];
+  if (UK_POSTCODE.test(q)) {
+    // A whole postcode: offer it with its area, e.g. "M15 4QX, Hulme, Manchester".
+    jobs.push(fetchJson("https://api.postcodes.io/postcodes/" + encodeURIComponent(q)).then(function (d) {
+      var r = d.result; if (!r) return [];
+      return [{ label: [r.postcode, r.admin_ward, r.admin_district].filter(Boolean).join(", "), lat: r.latitude, lon: r.longitude }];
+    }).catch(function () { return []; }));
+  }
+  jobs.push(fetchJson("https://photon.komoot.io/api/?limit=6&lang=en&bbox=" + UK_BBOX + "&q=" + encodeURIComponent(q)).then(function (d) {
+    return (d.features || []).map(function (f) {
+      var p = f.properties || {}, c = f.geometry && f.geometry.coordinates;
+      var street = [p.housenumber, p.street].filter(Boolean).join(" ");
+      var label = [p.name, street, p.district, p.city || p.town || p.village || p.county, p.postcode].filter(Boolean)
+        .filter(function (x, i, a) { return a.indexOf(x) === i; }).join(", ");
+      return c && label ? { label: label, lat: c[1], lon: c[0] } : null;
+    }).filter(Boolean);
+  }).catch(function () { return []; }));
+  return Promise.all(jobs).then(function (lists) {
+    var seen = {}, out = [];
+    lists.forEach(function (l) { l.forEach(function (s) { var k = s.label.toLowerCase(); if (!seen[k]) { seen[k] = true; out.push(s); } }); });
+    out.forEach(function (s) { GEO_CACHE[s.label.toLowerCase()] = { lat: s.lat, lon: s.lon }; });
+    return out.slice(0, 7);
+  });
+}
+// Any box marked data-place-lookup (the job's Venue) suggests addresses as you
+// type. Picking one fills the box as if you'd typed it, so Save works as normal.
+(function () {
+  var timer = null, seq = 0;
+  function listFor(input) { return input.parentElement && input.parentElement.querySelector(".place-list"); }
+  document.addEventListener("input", function (ev) {
+    var input = ev.target;
+    if (!input.matches || !input.matches("[data-place-lookup]") || input._picking) return;
+    var list = listFor(input); if (!list) return;
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      var mySeq = ++seq;
+      addressSuggestions(input.value).then(function (items) {
+        if (mySeq !== seq || document.activeElement !== input) return;
+        list.innerHTML = items.map(function (s, i) { return '<button type="button" class="place-opt" data-i="' + i + '">' + icon("pin") + '<span>' + escapeHtml(s.label) + '</span></button>'; }).join("");
+        list.classList.toggle("open", items.length > 0);
+        list.querySelectorAll(".place-opt").forEach(function (b) {
+          b.addEventListener("mousedown", function (e) {
+            e.preventDefault();
+            input._picking = true;
+            input.value = items[parseInt(b.getAttribute("data-i"), 10)].label;
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+            input._picking = false;
+            list.classList.remove("open");
+          });
+        });
+      });
+    }, 300);
+  });
+  document.addEventListener("focusout", function (ev) {
+    var input = ev.target;
+    if (!input.matches || !input.matches("[data-place-lookup]")) return;
+    setTimeout(function () { var l = listFor(input); if (l) l.classList.remove("open"); }, 150);
+  });
+  document.addEventListener("keydown", function (ev) {
+    var input = ev.target;
+    if (ev.key !== "Escape" || !input.matches || !input.matches("[data-place-lookup]")) return;
+    var l = listFor(input); if (l && l.classList.contains("open")) { ev.stopPropagation(); l.classList.remove("open"); }
+  }, true);
+})();
 // Map position for a place or postcode (as typed or picked).
 function geocode(text) {
   var key = String(text || "").trim().toLowerCase();

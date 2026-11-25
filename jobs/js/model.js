@@ -120,7 +120,7 @@ function clientStatement(clientId, from, to) {
   liveInvoices().forEach(function (i) {
     if (i.clientId !== clientId || (i.status !== "sent" && i.status !== "paid")) return;
     var gross = docTotals(i).gross;
-    all.push({ date: i.date || "", ref: i.number, detail: "Invoice", due: i.due || "", charge: gross, paid: 0, inv: i, order: 0 });
+    all.push({ date: i.date || "", ref: i.number, detail: invoiceTitle(i), due: i.due || "", charge: gross, paid: 0, inv: i, order: 0 });
     if (i.status === "paid") all.push({ date: i.paidDate || i.date || "", ref: i.number, detail: "Payment", due: "", charge: 0, paid: gross, inv: i, order: 1 });
   });
   all.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.order - b.order || String(a.ref).localeCompare(String(b.ref)); });
@@ -135,6 +135,12 @@ function clientStatement(clientId, from, to) {
   return { from: from || "", to: to || "", opening: opening, rows: rows, charged: round2(charged), paid: round2(paid), closing: bal, any: all.length > 0 };
 }
 // "1 Aug 2026 to 31 Oct 2026", "From 1 Aug 2026", "Up to 31 Oct 2026" or "All transactions to date".
+// What an invoice was for: the job's title as it is now (or the title saved
+// on the invoice, e.g. a project's name), else just "Invoice".
+function invoiceTitle(i) {
+  var j = i.jobId ? jobById(i.jobId) : null;
+  return (j && j.title) || i.title || "Invoice";
+}
 function statementPeriod(st) {
   if (st.from && st.to) return fmtDate(st.from) + " to " + fmtDate(st.to);
   if (st.from) return "From " + fmtDate(st.from);
