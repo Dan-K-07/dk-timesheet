@@ -200,6 +200,8 @@ body.dk-theme {
 /* Geist Mono is a little wider than Geist: one notch smaller in tables, and Notes keeps some room */
 .dk-theme .log-table td.mono, .dk-theme .log-table td.num, .dk-theme .log-table td.date-cell, .dk-theme .month-table td { font-size: 13px; }
 .dk-theme .log-table .notes-cell { min-width: 110px; }
+/* Big headline figures stay in Geist (Mono looks gappy at large sizes) */
+.dk-theme .side-big, .dk-theme .stat-value { font-family: var(--font-sans); }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) body.dk-theme { --side-bg: #0E1019; --side-active: #9AA6F5; }
 }

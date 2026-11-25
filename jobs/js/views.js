@@ -546,7 +546,7 @@ function renderJobPage(id) {
         field("Job title", bound("job", j.id, "title", j.title, { placeholder: "e.g. Fireworks - Ditton Manor" }), "span-2") +
         field("Client", bound("job", j.id, "clientId", j.clientId, { type: "select", options: clientOptions(true), rerender: true })) +
         field("Status", bound("job", j.id, "status", j.status, { type: "select", options: JOB_STATUSES, rerender: true })) +
-        field("Venue / location", bound("job", j.id, "venue", j.venue), "span-2") +
+        field("Venue / location", '<div class="place-wrap">' + bound("job", j.id, "venue", j.venue, { placeholder: "Start typing a venue, address or postcode", extra: ' autocomplete="off" data-place-lookup="1"' }) + '<div class="place-list"></div></div>', "span-2") +
         // Before a client is chosen this lists every project (with its client); picking one fills in the client.
         field("Project", bound("job", j.id, "projectId", j.projectId || "", { type: "select", rerender: true,
           options: [{ value: "", label: "— Not in a project —" }].concat(state.data.projects.filter(function (p) { return !j.clientId || p.clientId === j.clientId; })

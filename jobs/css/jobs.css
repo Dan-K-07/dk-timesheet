@@ -307,6 +307,7 @@ textarea.field-input { width: 100%; resize: vertical; line-height: 1.45; font-fa
 .stmt-summary b.accent { color: var(--accent); }
 .stmt-table td, .stmt-table th { white-space: nowrap; padding: 9px 10px; font-size: 13px; }
 .stmt-table tr.stmt-pay td { color: var(--ink-dim); }
+.stmt-table td.stmt-detail { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
 .stmt-table tr.stmt-pay td.num:nth-child(6) { color: var(--holiday); font-weight: 600; }
 .stmt-table tr.stmt-bf td { font-style: italic; color: var(--ink-dim); }
 @media (max-width: 640px) {
