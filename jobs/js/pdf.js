@@ -290,59 +290,76 @@ function buildStatementPdf(c, st) {
   var period = [statementPeriod(st), "Statement date " + fmtDate(todayIso()), c.supplierRef ? "Supplier ref " + c.supplierRef : ""].filter(Boolean).join("  ·  ");
   font(9, "normal", PDF_DIM); pdf.text(pdfText(period), M, y); y += 8;
 
-  /* ---- Transactions: plain table, a hairline under each row ---- */
-  var cols = [["Date", M, "left"], ["Reference", M + 24, "left"], ["Detail", M + 47, "left"], ["Due", M + 98, "left"],
-    ["Charge", R - 48, "right"], ["Credit / paid", R - 23, "right"], ["Balance", R, "right"]];
+  /* ---- Transactions: plain table, a hairline under each row ----
+     Each column is measured to fit what's in it (plus a gap), and Detail gets
+     the room that's left, so nothing runs into the next column. Days have two
+     digits (05 Jul 2026) so dates line up. */
+  var day2 = function (iso) { return iso ? pdfText(fmtDate(iso)).replace(/^(\d)\s/, "0$1 ") : ""; };
+  var rows = (st.from ? [{ bf: true }] : []).concat(st.rows), rh = 8.2, gap = 6, ROW = 8.8, HEAD = 8;
   var fit = function (text, w) {
     text = pdfText(text);
     if (pdf.getTextWidth(text) <= w) return text;
     while (text.length > 1 && pdf.getTextWidth(text + "...") > w) text = text.slice(0, -1);
     return text.trim() + "...";
   };
+  var widest = function (head, values) {
+    font(HEAD, "bold"); var w = pdf.getTextWidth(head);
+    font(ROW, "normal");
+    values.forEach(function (v) { if (v) w = Math.max(w, pdf.getTextWidth(v)); });
+    return w;
+  };
+  var cell = rows.map(function (r) {
+    return r.bf ? { date: day2(st.from), ref: "", detail: "Balance brought forward", due: "", charge: "", paid: "", bal: pdfMoney(st.opening) }
+      : { date: day2(r.date), ref: pdfText(r.ref), detail: r.detail, due: day2(r.due), charge: r.charge ? pdfMoney(r.charge) : "",
+          paid: r.paid ? pdfMoney(r.paid) : "", bal: pdfMoney(r.balance), pay: r.detail === "Payment" };
+  });
+  var pick = function (k) { return cell.map(function (c) { return c[k]; }); };
+  var wDate = widest("Date", pick("date")), wRef = Math.min(widest("Reference", pick("ref")), 30), wDue = widest("Due", pick("due"));
+  var wCharge = widest("Charge", pick("charge")), wPaid = widest("Credit / paid", pick("paid")), wBal = widest("Balance", pick("bal").concat([pdfMoney(st.closing)]));
+  var xBal = R, xPaid = xBal - wBal - gap, xCharge = xPaid - wPaid - gap, xDue = xCharge - wCharge - gap - wDue;
+  var xDate = M, xRef = xDate + wDate + gap, xDetail = xRef + wRef + gap, wDetail = xDue - gap - xDetail;
+  var cols = [["Date", xDate, "left"], ["Reference", xRef, "left"], ["Detail", xDetail, "left"], ["Due", xDue, "left"],
+    ["Charge", xCharge, "right"], ["Credit / paid", xPaid, "right"], ["Balance", xBal, "right"]];
   function tableHead() {
-    font(8.5, "bold", PDF_DIM);
+    font(HEAD, "bold", PDF_DIM);
     cols.forEach(function (c2) { pdf.text(c2[0], c2[1], y, { align: c2[2] }); });
     y += 3; hr(y, [200, 204, 216], 0.3);
   }
   tableHead();
-  var rows = (st.from ? [{ bf: true }] : []).concat(st.rows), rh = 8.4;
-  if (!rows.length) { font(9, "normal", PDF_DIM); pdf.text("No transactions in these dates.", M, y + 5.6); y += rh; hr(y); }
-  rows.forEach(function (r) {
+  if (!rows.length) { font(ROW, "normal", PDF_DIM); pdf.text("No transactions in these dates.", M, y + 5.9); y += rh; hr(y); }
+  cell.forEach(function (c) {
     if (y + rh > BOTTOM) { newPage(); tableHead(); }
-    var ty = y + 5.6;
-    if (r.bf) {
-      font(9, "normal", PDF_DIM); pdf.text(pdfText(fmtDate(st.from)), cols[0][1], ty); pdf.text("Balance brought forward", cols[2][1], ty);
-      font(9, "normal"); pdf.text(pdfMoney(st.opening), cols[6][1], ty, { align: "right" });
-    } else {
-      font(9, "normal", PDF_DIM);
-      pdf.text(pdfText(fmtDate(r.date)), cols[0][1], ty);
-      pdf.text(fit(r.ref, 21), cols[1][1], ty);
-      pdf.text(fit(r.detail, 49), cols[2][1], ty);
-      if (r.due) pdf.text(pdfText(fmtDate(r.due)), cols[3][1], ty);
-      font(9, "normal");
-      if (r.charge) pdf.text(pdfMoney(r.charge), cols[4][1], ty, { align: "right" });
-      if (r.paid) pdf.text(pdfMoney(r.paid), cols[5][1], ty, { align: "right" });
-      pdf.text(pdfMoney(r.balance), cols[6][1], ty, { align: "right" });
-    }
+    var ty = y + 5.5;
+    font(ROW, "normal", PDF_DIM);
+    pdf.text(c.date, xDate, ty);
+    if (c.ref) pdf.text(fit(c.ref, wRef), xRef, ty);
+    pdf.text(fit(c.detail, wDetail), xDetail, ty);
+    if (c.due) pdf.text(c.due, xDue, ty);
+    font(ROW, "normal");
+    if (c.charge) pdf.text(c.charge, xCharge, ty, { align: "right" });
+    if (c.paid) pdf.text(c.paid, xPaid, ty, { align: "right" });
+    pdf.text(c.bal, xBal, ty, { align: "right" });
     y += rh; hr(y);
   });
 
-  /* ---- Balance under the table ---- */
-  if (y + 14 > BOTTOM) newPage();
-  y += 7;
-  font(11, "bold"); pdf.text(pdfText(balanceLabel), cols[4][1] + 3, y, { align: "right" });
-  pdf.text(pdfMoney(st.closing), R, y, { align: "right" });
-  y += 12;
-
-  /* ---- How to pay, if anything's owed ---- */
-  if (st.closing > 0 && (s.accountNumber || s.sortCode)) {
-    var pay = [["Bank", s.bankName], ["Account name", s.accountName], ["Account number", s.accountNumber], ["Sort code", s.sortCode], ["Reference", c.supplierRef]]
-      .filter(function (x) { return x[1]; });
-    if (y + 8 + pay.length * 4.8 > BOTTOM) newPage();
-    font(7, "normal", PDF_DIM); pdf.text("PAYMENT DETAILS", M, y, { charSpace: 0.3 }); y += 5;
+  /* ---- Under the table: how to pay (left) and the balance (right), side by
+     side so they stay on the same page as the table where they can ---- */
+  var pay = st.closing > 0 && (s.accountNumber || s.sortCode) ? [["Bank", s.bankName], ["Account name", s.accountName],
+    ["Account number", s.accountNumber], ["Sort code", s.sortCode], ["Reference", c.supplierRef]].filter(function (x) { return x[1]; }) : [];
+  var payH = pay.length ? 6 + pay.length * 4.8 : 0;
+  // The balance always stays with the table; if the bank details won't fit
+  // beside it, they go at the top of the next page instead.
+  if (y + 12 > BOTTOM) newPage();
+  y += 8;
+  font(11, "bold"); pdf.text(pdfText(balanceLabel), xBal - wBal - gap, y, { align: "right" });
+  pdf.text(pdfMoney(st.closing), xBal, y, { align: "right" });
+  if (pay.length) {
+    var py = y - 3;
+    if (py + payH > BOTTOM) { newPage(); py = y + 2; }
+    font(7, "normal", PDF_DIM); pdf.text("PAYMENT DETAILS", M, py, { charSpace: 0.3 }); py += 5;
     pay.forEach(function (x) {
-      font(9, "normal", PDF_DIM); pdf.text(pdfText(x[0]), M, y);
-      font(9, "normal"); pdf.text(pdfText(x[1]), M + 32, y); y += 4.8;
+      font(9, "normal", PDF_DIM); pdf.text(pdfText(x[0]), M, py);
+      font(9, "normal"); pdf.text(pdfText(x[1]), M + 28, py); py += 4.8;
     });
   }
 
