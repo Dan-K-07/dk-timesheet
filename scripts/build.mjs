@@ -58,4 +58,14 @@ if (section === "timesheets") {
   writeFileSync(join(dist, "jobs", "index.html"), redirectPage(jobsUrl + "/"));
 }
 writeFileSync(join(dist, "js", "site-config.js"), siteConfig);
+
+// Cache-busting: every local .js/.css link in the page gets ?v=<this build>,
+// so each deploy has new file addresses and no browser can keep using old
+// copies (even one that saved them before the no-cache headers existed).
+const build = Date.now().toString(36);
+for (const page of ["index.html"]) {
+  const file = join(dist, page);
+  const html = readFileSync(file, "utf8").replace(/(src|href)="(?!https?:|\/\/|#|data:)([^"?]+\.(?:js|css))"/g, `$1="$2?v=${build}"`);
+  writeFileSync(file, html);
+}
 console.log("Built " + section + " into dist/ (timesheets: " + timesheetsUrl + ", jobs: " + jobsUrl + ")");
