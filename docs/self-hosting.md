@@ -71,6 +71,7 @@ TIMESHEETS_URL=https://timesheets.dkevent.co.uk JOBS_URL=https://jobs.dkevent.co
 ## Docker build, caching and health check (from Timesheet v2.13 / Jobs v2.6)
 Both Coolify resources build with the repo's `Dockerfile` (like Sky Spark): Node builds one section with `scripts/build.mjs`, nginx serves it (`nginx/default.conf`).
 - Coolify → each resource → General → **Build Pack: Dockerfile**. Env vars (all "Available at Buildtime"): `SITE_SECTION` (`timesheets` or `jobs`), `TIMESHEETS_URL`, `JOBS_URL`, and on jobs `GOOGLE_CLIENT_ID`. Port 80.
+- Cache-busting: the build adds `?v=<build>` to every local `.js`/`.css` link in `index.html`, so each deploy has new file addresses (covers devices holding copies from before the no-cache headers).
 - Caching: `/fonts/*` is cached for a year (file names carry a version, e.g. `.v1`); everything else is `Cache-Control: no-cache`, so Cloudflare and browsers always check for a new deploy.
 - Health check: HTTP GET `http://localhost:80/healthz`, expect 200 and `ok`.
 
